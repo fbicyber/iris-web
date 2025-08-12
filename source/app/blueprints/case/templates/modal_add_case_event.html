@@ -26,11 +26,6 @@
                             <a class="dropdown-item" href="#" onclick='duplicate_event({{event.event_id}});return false;'><i class="fa fa-clone mr-2"></i>Duplicate</a>
                         </div>
                     </div>
-                    <button type="button" class="btn bg-transparent btn-xs" onclick="comment_element({{ event.event_id }}, 'timeline/events')" title="Comments">
-                        <span class="btn-label">
-                            <i class="fa-solid fa-comments"></i><span class="notification" id="object_comments_number">{{ comments_map|length if comments_map|length > 0 else '' }}</span>
-                        </span>
-                    </button>
                 {% endif %}
 
                     <button class="float-right btn bg-transparent" title="Minimize" onclick="modal_minimized('modal_add_event', '{% if event.event_id %} Event ID #{{ event.event_id }} {% else %} Add event {% endif %}');"> <i class='fa fa-minus'></i> </button>
@@ -56,15 +51,16 @@
                                     </div>
                                     <div class="form-group col-xl-7 col-md-12">
                                         <label for="event_timetitle" class="placeholder ml-2">Event Time *</label>
-                                        <div class="row ml-2" id="event_date_inputs">
+                                        <div class="row ml-2" id="event_date_inputs"  style="display:none;">
                                                 <input class="form-control col-5 mr-2" type="date" id="event_date" {% if event.event_date_wtz %} value="{{ event.event_date_wtz.strftime('%Y-%m-%d') }}"{% endif %}>
                                                 <span></span>
                                                 <input class="form-control col-4" type="time" step="0.001" id="event_time" {% if event.event_date_wtz %} value="{{ event.event_date_wtz.strftime('%H:%M:%S.%f')[:-3] }}" {% else %} value="00:00:00.000" {% endif %}>
                                                 <span></span>
                                                 <input class="form-control col-2" type="text" id="event_tz" {% if event.event_tz %} value="{{ event.event_tz }}" {% else %} value="+00:00" {% endif %}>
                                                 <button class="btn btn-sm btn-outline-white" type="button" onclick="show_time_converter();return false;"><i class="fas fa-magic"></i></button>
+                                                <span id="convert_warning_feedback" class="text-warning"></span>
                                         </div>
-                                        <div class="row ml-2" id="event_date_convert" style="display:none;">
+                                        <div class="row ml-2" id="event_date_convert">
                                             <div class="input-group ">
                                                 <input class="form-control col-9" type="text" id="event_date_convert_input" placeholder="Enter date in any format and submit to try auto-parsing">
                                                 <div class="input-group-append">
@@ -72,6 +68,7 @@
                                                     <button class="btn btn-sm btn-outline" type="button" onclick="hide_time_converter();return false;"><i class="fas fa-magic"></i></button>
                                                 </div>
                                             </div>
+                                            <span id="convert_warning_feedback" class="text-warning"></span>
                                             <span id="convert_bad_feedback" class="text-danger"></span>
                                         </div>
                                     </div>
@@ -102,9 +99,17 @@
                                         </div>
                                     </div>
                                 </div>
+                               {% if event.event_id %}
+                                    <button type="button" class="btn btn-sm" onclick="comment_element({{ event.event_id }}, 'timeline/events')" title="Comments">
+                                        <span class="btn-label">
+                                            <i class="fa-solid fa-comments"></i><span>View Comments:  </span>
+                                            <span class="notification" id="object_comments_number">{{ comments_map|length if comments_map|length > 0 else ''}}</span>
+                                        </span>
+                                    </button>
+                                {% endif %}
                                 <div class="row">
                                     <div class="form-group col-12 mt-1">
-                                          <a class="btn btn-light btn-sm" data-toggle="collapse" href="#collapseRawEvent" role="button" aria-expanded="false" aria-controls="collapseRawEvent">> Edit raw event data</a>
+                                        <a class="btn btn-light btn-sm" data-toggle="collapse" href="#collapseRawEvent" role="button" aria-expanded="true" aria-controls="collapseRawEvent">> Edit raw event data</a>    
                                         <div class="collapse" id="collapseRawEvent">
                                             <div class="card card-body">
                                                 <label for="event_raw" class="placeholder">{{ form.event_raw.label.text }}</label>

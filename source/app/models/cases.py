@@ -71,6 +71,7 @@ class Cases(db.Model):
     severity_id = Column(ForeignKey('severities.severity_id'), nullable=True)
 
     modification_history = Column(JSON)
+    local_timezone = Column(Text, default="UTC")
 
     client = relationship('Client')
     user = relationship('User', foreign_keys=[user_id])

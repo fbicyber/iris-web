@@ -18,11 +18,6 @@
                                 <a class="dropdown-item" href="#" onclick='copy_object_link_md("asset", {{asset.asset_id}});return false;'><i class="fa-brands fa-markdown mr-2"></i>Markdown Link</a>
                               </div>
                          </div>
-                         <button type="button" class="btn bg-transparent btn-xs" onclick="comment_element({{ asset.asset_id }}, 'assets')" title="Comments">
-                            <span class="btn-label">
-                                <i class="fa-solid fa-comments"></i><span class="notification" id="object_comments_number">{{ comments_map|length if comments_map|length > 0 else '' }}</span>
-                            </span>
-                        </button>
                         {% endif %}
                     <button class="float-right btn bg-transparent" title="Minimize" onclick="modal_minimized('modal_add_asset', '{{ "Asset {}".format(asset.asset_name) if asset.asset_name else "Add asset" }}');"> <i class='fa fa-minus'></i> </button>
                     <button type="button" class="pull-right btn bg-transparent" data-dismiss="modal" aria-label="Close"><span
@@ -73,14 +68,28 @@
                                         </div>
                                     </div>
                                 </div>
+                                {% if asset.asset_id %}
+                                    <button type="button" class="btn btn-sm ml-2" onclick="comment_element({{ asset.asset_id }}, 'assets')" title="Comments">
+                                        <span class="btn-label">
+                                            <i class="fa-solid fa-comments"></i><span>View Comments:  </span>
+                                            <span class="notification" id="object_comments_number">{{ comments_map|length if comments_map|length > 0 else ''}}</span>
+                                        </span>
+                                    </button>
+                                {% endif %}
                                 <div class="form-row ml-2">
-                                    <div class="form-group col-6">
+                                    <div class="form-group col-4">
                                             <label for="asset_domain" class="placeholder">Domain</label>
                                             {{ form.asset_domain(class='form-control',  autocomplete="off") }}
                                     </div>
-                                    <div class="form-group col-6">
-                                            <label for="asset_ip" class="placeholder">IP</label>
+                                    <div class="form-group col-4">
+                                            <label for="asset_ip" class="placeholder">Internal IP</label>
                                             {{ form.asset_ip(class='form-control',  autocomplete="off") }}
+                                            <label id="asset_ip_message" class="text-danger" hidden="true">Invalid IP Address</label>    
+                                    </div>
+                                    <div class="form-group col-4">
+                                        <label for="asset_external_ip" class="placeholder">External IP</label>
+                                        {{ form.asset_external_ip(class='form-control',  autocomplete="off") }}
+                                        <label id="asset_ext_ip_message" class="text-danger" hidden="true">Invalid IP Address</label>
                                     </div>
                                 </div>
                                 <div class="form-group">

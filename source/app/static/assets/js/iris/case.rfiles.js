@@ -456,10 +456,25 @@ $(document).ready(function(){
         orderCellsTop: true,
         initComplete: function () {
             tableFiltering(this.api(), 'rfiles_table');
+            $('div.dataTables_filter', this.api().table(). container()).attr('id', 'datatable_search_bar');
         },
         select: true
     });
     $("#rfiles_table").css("font-size", 12);
+
+    // apply search 
+    $('#datatable_search_bar').keyup(function(){
+        Table.search($(this).val()).draw() ;
+    })
+
+    // prevent redirect to case #1 by default 
+    $('#datatable_search_bar').on("keypress", function(e){
+        if (e.which == 13) {
+            e.preventDefault();
+        }
+    })
+
+    
     var buttons = new $.fn.dataTable.Buttons(Table, {
         buttons: [
             { "extend": 'csvHtml5', "text":'<i class="fas fa-cloud-download-alt"></i>',"className": 'btn btn-link text-white'

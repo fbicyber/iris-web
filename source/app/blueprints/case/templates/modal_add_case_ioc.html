@@ -20,11 +20,6 @@
                          <div class="dropdown-menu pull-right" aria-labelledby="dropdownMenuButton">
                           </div>
                      </div>
-                     <button type="button" class="btn bg-transparent btn-xs" onclick="comment_element({{ ioc.ioc_id }}, 'ioc')" title="Comments">
-                        <span class="btn-label">
-                            <i class="fa-solid fa-comments"></i><span class="notification" id="object_comments_number">{{ comments_map|length if comments_map|length > 0 else '' }}</span>
-                        </span>
-                     </button>
                     {% endif %}
                      <button class="float-right btn bg-transparent" title="Minimize" onclick="modal_minimized('modal_add_ioc', '{% if ioc.ioc_id %}Edit IOC #{{ ioc.ioc_id }} {% else %} Add IOC {% endif %}');"> <i class='fa fa-minus'></i> </button>
                     <button type="button" class="float-right btn bg-transparent" data-dismiss="modal" aria-label="Close"><span
@@ -94,6 +89,14 @@
                                     </div>
                                 </div>
                             </div>
+                            {% if ioc.ioc_id %}
+                                <button type="button" class="btn btn-sm ml-2" onclick="comment_element({{ ioc.ioc_id }}, 'ioc')" title="Comments">
+                                    <span class="btn-label">
+                                        <i class="fa-solid fa-comments"></i><span>View Comments:  </span>
+                                        <span class="notification" id="object_comments_number">{{ comments_map|length if comments_map|length > 0 else '' }}</span>
+                                    </span>
+                                </button>
+                            {% endif %}
                             <div class="form-group">
                                 <label for="ioc_tags">IOC tags
                                 </label>

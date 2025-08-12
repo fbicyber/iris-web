@@ -115,6 +115,29 @@ function save_event() {
 }
 
 
+function select_timezone(){
+   /**
+    * Allow user to choose local timezone from dropdown
+    * Call POST to /timeline/select-timezone"
+    */
+
+    $('#timezone').on("change", function(){
+        let selected_timezone = $(this).val();
+        post_request_api("timeline/select-timezone", JSON.stringify(selected_timezone), true)
+        .done((data) => {
+            if(notify_auto_api(data)) {
+                // console.log("successfully post data for select timezone", data.data.timezone);
+                // dynamically update the Local header name
+                $('#local_timezone_header').text("Local, UTC" + data.data.offset);
+                
+                // refresh and auto update the table
+                get_or_filter_tm();
+            }
+        });
+    });
+}
+
+
 function duplicate_event(id) {
     window.location.hash = id;
     clear_api_error();
@@ -180,13 +203,20 @@ function update_event_ext(event_id, do_close) {
 
 }
 
-/* Delete an event from the timeline thank to its id */ 
-function delete_event(id) {
-    window.location.hash = id;
-    do_deletion_prompt("You are about to delete event #" + id)
+/* Delete an event from the timeline */ 
+function delete_event() {
+    var selected_rows = $(".timeline-selected");
+
+    // selected rows from timeline tabular
+    var table_selected_rows = Table.rows('.selected').data();
+    var event_id_set = get_selected_rows_event_ids(selected_rows, table_selected_rows);
+
+    event_id_set.forEach(event_id => {
+    window.location.hash = event_id;
+    do_deletion_prompt("You are about to delete event #" + event_id)
     .then((doDelete) => {
         if (doDelete) {
-            post_request_api("timeline/events/delete/" + id)
+            post_request_api("timeline/events/delete/" + event_id)
             .done(function(data) {
                 if(notify_auto_api(data)) {
                     apply_filtering();
@@ -195,6 +225,7 @@ function delete_event(id) {
             });
         }
     });
+})
 }
 
 /* Edit an event from the timeline thanks to its ID */
@@ -395,16 +426,42 @@ function toggle_colors() {
     // console.log(color_buttons);
 }
 
+function get_selected_rows_event_ids(selected_rows, table_selected_rows){
+    /**
+     *  Gather all selected rows from timeline table and old timeline list
+     *  Get the event ids of the selected rows
+     * 
+     *  Return: a Set() of selected rows's event ids
+     */
+
+    // a Set of event ids from all selected rows
+    // doing this to ensure it is backward friendly --> if people want to use the old events list, functionality will still work
+    var event_id_set = new Set();
+
+    // adding event ids from TABLE selected rows to the set, it should NOT add duplicates
+    table_selected_rows.each(function(evt){
+        event_id_set.add(evt.event_id.toString());
+    });
+
+    // adding event ids from selected rows to the set, it should NOT add duplicates
+    selected_rows.each(function(index){
+        var object = selected_rows[index];
+        var event_id = object.getAttribute('id').replace("event_",""); 
+        event_id_set.add(event_id);
+    });
+
+    return event_id_set;
+}
+
 function events_set_attribute(attribute, color) {
 
     var attribute_value;
 
     var selected_rows = $(".timeline-selected");
 
-    if(selected_rows.length <= 0) {
-        console.log("no rows selected, returning");
-        return true;
-    }
+    // selected rows from timeline tabular
+    var table_selected_rows = Table.rows('.selected').data();
+
 
     switch(attribute) {
         case "event_in_graph":
@@ -421,18 +478,24 @@ function events_set_attribute(attribute, color) {
             return false;
     }
 
-    //loop through events and toggle/set selected attribute
-    selected_rows.each(function(index) {
-        var object = selected_rows[index];
-        var event_id = object.getAttribute('id').replace("event_",""); 
+    // if no rows are selected both in table and old list, return
+    if(table_selected_rows.length <= 0 && selected_rows.length <= 0){
+        console.log("no rows selected, returning");
+        return true;
+    } 
 
+    var event_id_set = get_selected_rows_event_ids(selected_rows, table_selected_rows);
+
+    var index = 0;  // will be used to keep track of where in event_id_set for the loop below 
+    event_id_set.forEach(function(evt_id){
         var original_event;
-
-        //get event data
-        get_request_api("timeline/events/" + event_id)
+       
+        // get event data
+        get_request_api("timeline/events/" + evt_id)
         .done((data) => {
             original_event = data.data;
             if(notify_auto_api(data, true)) {
+
                 //change attribute to selected value
                 if(attribute === 'event_in_graph' || attribute === 'event_in_summary'){
                     attribute_value = original_event[attribute];
@@ -447,17 +510,22 @@ function events_set_attribute(attribute, color) {
                 delete original_event['event_comments_map'];
 
                 //send updated event to API
-                post_request_api('timeline/events/update/' + event_id, JSON.stringify(original_event), true)
+                post_request_api('timeline/events/update/' + evt_id, JSON.stringify(original_event), true)
                 .done(function(data) {
                     notify_auto_api(data);
-                    if (index === selected_rows.length - 1) {
-                        get_or_filter_tm(function() {
+                    if (index === event_id_set.size - 1) {
+                        // if we are at the last element of the set, show the updated view of the rows 
+
+                        get_or_filter_tm(function() {  // update the old event lists selected row, indicate that the rows are selected
                             selected_rows.each(function() {
                                 var event_id = this.getAttribute('id')
                                 $('#' + event_id).addClass("timeline-selected");
                             });
                         });
+
+                        // IF selected_rows isnt used anymore, just call get_or_filter_tm()
                     }
+                    index++;
                 });
             }
         });
@@ -466,14 +534,19 @@ function events_set_attribute(attribute, color) {
 
 function events_bulk_delete() {
     var selected_rows = $(".timeline-selected");
-    if(selected_rows.length <= 0) {
+    // selected rows from timeline tabular
+    var table_selected_rows = Table.rows('.selected').data();
+    
+    if(table_selected_rows.length <= 0 && selected_rows.length <= 0){
         console.log("no rows selected, returning");
         return true;
     }
-
+    
+    var event_id_set = get_selected_rows_event_ids(selected_rows, table_selected_rows);
+    
     swal({
         title: "Are you sure?",
-        text: "You are about to delete " + selected_rows.length + " events.\nThere is no coming back.",
+        text: "You are about to delete " + event_id_set.size + " events.\nThere is no coming back.",
         icon: "warning",
         buttons: true,
         dangerMode: true,
@@ -483,15 +556,16 @@ function events_bulk_delete() {
     })
     .then((willDelete) => {
         if (willDelete) {
-            selected_rows.each(function(index) {
-                var object = selected_rows[index];
-                var event_id = object.getAttribute('id').replace("event_","");
-                post_request_api("timeline/events/delete/" + event_id)
+            var index = 0;
+            event_id_set.forEach(function(evt_id){
+                
+                post_request_api("timeline/events/delete/" + evt_id)
                 .done(function(data) {
                     notify_auto_api(data);
-                    if (index === selected_rows.length - 1) {
+                    if (index === event_id_set.size - 1) {
                         get_or_filter_tm();
                     }
+                    index++;
                 });
             });
         } else {
@@ -722,7 +796,7 @@ function buildEvent(event_data, compact, comments_map, tree, tesk, tmb, idx, rea
                                     <a href= "#" class="dropdown-item" onclick="copy_object_link_md('event', ${evt.event_id});return false;"><small class="fa-brands fa-markdown mr-2"></small>Markdown Link</a>
                                     <a href= "#" class="dropdown-item" onclick="duplicate_event(${evt.event_id});return false;"><small class="fa fa-clone mr-2"></small>Duplicate</a>
                                     <div class="dropdown-divider"></div>
-                                    <a href= "#" class="dropdown-item text-danger" onclick="delete_event(${evt.event_id});"><small class="fa fa-trash mr-2"></small>Delete</a>
+                                    <a href= "#" class="dropdown-item text-danger" onclick="delete_event();"><small class="fa fa-trash mr-2"></small>Delete</a>
                             </div>
                         </div>
                         <div class="collapsed" id="dropa_${evt.event_id}" data-toggle="collapse" data-target="#drop_${evt.event_id}" aria-expanded="false" aria-controls="drop_${evt.event_id}" role="button" style="cursor: pointer;">
@@ -778,7 +852,7 @@ function buildEvent(event_data, compact, comments_map, tree, tesk, tmb, idx, rea
                                     <a href= "#" class="dropdown-item" onclick="copy_object_link_md('event', ${evt.event_id});return false;"><small class="fa-brands fa-markdown mr-2"></small>Markdown Link</a>
                                     <a href= "#" class="dropdown-item" onclick="duplicate_event(${evt.event_id});return false;"><small class="fa fa-clone mr-2"></small>Duplicate</a>
                                     <div class="dropdown-divider"></div>
-                                    <a href= "#" class="dropdown-item text-danger" onclick="delete_event(${evt.event_id});"><small class="fa fa-trash mr-2"></small>Delete</a>
+                                    <a href= "#" class="dropdown-item text-danger" onclick="delete_event();"><small class="fa fa-trash mr-2"></small>Delete</a>
                             </div>
                         </div>
                         <div class="row mb-2">
@@ -1132,11 +1206,12 @@ function time_converter(){
             $('#event_time').val(data.data.time);
             $('#event_tz').val(data.data.tz);
             hide_time_converter();
+            $('#convert_warning_feedback').text(data.data.msg);
             $('#convert_bad_feedback').text('');
         }
     })
     .fail(function() {
-        $('#convert_bad_feedback').text('Unable to find a matching pattern for the date');
+        $('#convert_bad_feedback').text('Unable to find a matching pattern for the date.');
     });
 }
 
@@ -1201,6 +1276,186 @@ function timelineToCsvWithUI(){
     }
     download_file("iris_timeline.csv", "text/csv", csv_data);
 }
+
+function timelineToExcel() {
+    let workbook = new ExcelJS.Workbook();
+    let worksheet = workbook.addWorksheet('Timeline');
+
+    worksheet.columns = [
+        { header: 'event_id', key: 'event_id'},
+        { header: 'event_date', key: 'event_date'},
+        { header: 'event_tz', key: 'event_tz'},
+        { header: 'event_title', key: 'event_title' },
+        { header: 'event_category', key: 'event_category' },
+        { header: 'event_content', key: 'event_content' },
+        { header: 'event_raw', key: 'event_raw' },
+        { header: 'event_source', key: 'event_source' },
+        { header: 'event_assets', key: 'event_assets' },
+        { header: 'event_iocs', key: 'event_iocs' },
+        { header: 'event_tags', key: 'event_tags' },
+    ];
+
+    for (index in current_timeline) {
+        let event = current_timeline[index];
+        let row_assets = "";
+        if (event.assets.length > 0 && event.assets != undefined)
+        {
+            event.assets.forEach((asset) => {
+                row_assets += asset.name;
+                row_assets += ";";
+            });
+        }
+        let row_iocs = "";
+        if (event.iocs.length > 0 && event.iocs != undefined) {
+            row_iocs = "";
+            event.iocs.forEach((ioc) => {
+                row_iocs += ioc.name;
+                row_iocs += ";";
+            });
+        }
+        let row_tags = event.event_tags.replace(",", "|");
+        worksheet.addRow({ event_id: event.event_id, event_date: event.event_date, event_tz: "+00:00", 
+                        event_title: event.event_title, event_category: event.category_name, event_content: event.event_content, 
+                        event_raw: event.event_raw, event_source: event.event_source, event_assets: row_assets, event_iocs: row_iocs, event_tags: row_tags });
+    }
+    // Unfreeze every column except event_id
+    for(let col_idx = 1; col_idx <= worksheet.columnCount; col_idx++)
+    {
+        let col = worksheet.getColumn(col_idx);
+        if (col._header != "event_id")
+        {
+            col.protection = { locked: false, lockText: false };
+        }
+    }
+    // Freeze headers
+    let header_row = worksheet.getRow(1);
+    header_row.protection = { locked: true, lockText: true };
+
+    // Resize column width to largest value + a buffer
+    worksheet.columns.forEach(column => {
+        let lengths = column.values.map(v => v.toString().length);
+        let maxLength = Math.max(...lengths.filter(v => typeof v === 'number'));
+        column.width = maxLength+1;
+    });
+
+    // add Assets tab to Excel export
+    let assets_worksheet = workbook.addWorksheet('Assets');
+    // full_assets is defined in common.js, to be accessible across different tabs
+    addAssetsTabToExcel(assets_worksheet, full_assets);
+
+    // add IOCs tab to Excel export
+    let iocs_worksheet = workbook.addWorksheet('IOCs');
+    // full_iocs is defined in common.js, to be accessible across different tabs
+    addIocsTabToExcel(iocs_worksheet, full_iocs);
+
+    // format filename: case_[caseid]_timeline_[ISO UTC date].xlsx
+    let caseid = get_caseid();
+    date = get_current_datetime_iso();
+    filename = "case_" + caseid + "_timeline_" + date + ".xlsx";
+
+    workbook.xlsx.writeBuffer().then(function (data) {
+        const blob = new Blob([data],
+            { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+    });
+}
+
+
+function timelineToExcelWithUI() {
+    let workbook = new ExcelJS.Workbook();
+    let worksheet = workbook.addWorksheet('Timeline');
+
+    worksheet.columns = [
+        { header: 'event_id', key: 'event_id' },
+        { header: 'event_date', key: 'event_date' },
+        { header: 'event_tz', key: 'event_tz' },
+        { header: 'event_title', key: 'event_title' },
+        { header: 'event_category', key: 'event_category' },
+        { header: 'event_content', key: 'event_content' },
+        { header: 'event_raw', key: 'event_raw' },
+        { header: 'event_source', key: 'event_source' },
+        { header: 'event_assets', key: 'event_assets' },
+        { header: 'event_iocs', key: 'event_iocs' },
+        { header: 'event_tags', key: 'event_tags' },
+        { header: "created_by", key: "created_by"},
+        { header: "creation_date", key: "creation_date"},
+    ];
+
+    for (index in current_timeline) {
+        let event = current_timeline[index];
+        let row_assets = "";
+        if (event.assets.length > 0 && event.assets != undefined) {
+            event.assets.forEach((asset) => {
+                row_assets += asset.name;
+                row_assets += ";";
+            });
+        }
+        let row_iocs = "";
+        if (event.iocs.length > 0 && event.iocs != undefined) {
+            row_iocs = "";
+            event.iocs.forEach((ioc) => {
+                row_iocs += ioc.name;
+                row_iocs += ";";
+            });
+        }
+        let row_tags = event.event_tags.replace(",", "|");
+        worksheet.addRow({ event_id: event.event_id, event_date: event.event_date, event_tz: "+00:00", 
+                        event_title: event.event_title, event_category: event.category_name, event_content: event.event_content, 
+                        event_raw: event.event_raw, event_source: event.event_source, event_assets: row_assets, event_iocs: row_iocs, 
+                        event_tags: row_tags, created_by: event.user, creation_date: event.event_added });
+    }
+    // Unfreeze every column except event_id and user_info
+    for (let col_idx = 1; col_idx <= worksheet.columnCount; col_idx++) {
+        let col = worksheet.getColumn(col_idx);
+        if(col._header != "event_id" && col._header != "created_by" && col._header != "creation_date")
+        {
+            col.protection = { locked: false, lockText: false };
+        }
+    }
+    // Freeze headers
+    let header_row = worksheet.getRow(1);
+    header_row.protection = { locked: true, lockText: true };
+
+    // Resize column width to largest value + a buffer
+    worksheet.columns.forEach(column => {
+        let lengths = column.values.map(v => v.toString().length);
+        let maxLength = Math.max(...lengths.filter(v => typeof v === 'number'));
+        column.width = maxLength + 1;
+    });
+
+
+    // add Assets tab to Excel export
+    let assets_worksheet = workbook.addWorksheet('Assets');
+    // full_assets is defined in common.js, to be accessible across different tabs
+    addAssetsTabToExcel(assets_worksheet, full_assets);
+
+    // add IOCs tab to Excel export
+    let iocs_worksheet = workbook.addWorksheet('IOCs');
+    // full_iocs is defined in common.js, to be accessible across different tabs
+    addIocsTabToExcel(iocs_worksheet, full_iocs);
+
+    // format filename: case_[caseid]_timeline_[ISO UTC date].xlsx
+    let caseid = get_caseid();
+    date = get_current_datetime_iso();
+    filename = "case_" + caseid + "_timeline_" + date + ".xlsx";
+
+    workbook.xlsx.writeBuffer().then(function (data) {
+        const blob = new Blob([data],
+            { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+    });
+}
+
 
 let parsed_filter = {};
 let keywords = ['asset', 'asset_id', 'tag', 'title', 'description', 'ioc', 'ioc_id',
@@ -1268,6 +1523,27 @@ function apply_filtering(post_req_fn) {
             if(post_req_fn !== undefined) {
                 post_req_fn();
             }
+            // add list of events to timeline tabular
+            events_list = data.data.tim;
+            Table.clear();
+            Table.rows.add(events_list);
+
+            // TODO: make cells editable here, if needed
+
+            Table.columns.adjust().draw();
+            load_menu_mod_options('event', Table, delete_event);
+            $('[data-toggle="popover"]').popover();
+            Table.responsive.recalc();
+            $(document)
+                .off('click', '.event_details_link')
+                .on('click', '.event_details_link', function(event) {
+                    event.preventDefault();
+                    let event_id = $(this).data('event_id');
+                    edit_event(event_id);
+                });
+
+            set_last_state(data.data.state);
+            hide_loader();
         }
         goToSharedLink();
     });
@@ -1304,8 +1580,8 @@ function show_timeline_filter_help() {
 }
 
 /* BEGIN_RS_CODE */
-function fire_upload_csv_events() {
-    $('#modal_upload_csv_events').modal('show');
+function fire_upload_excel_events() {
+    $('#modal_upload_excel_events').modal('show');
 }
 
 function upload_csv_events() {
@@ -1341,6 +1617,57 @@ function upload_csv_events() {
     return false;
 }
 
+function upload_excel_events(){
+    const api_path =  '/case/timeline/events/excel_upload';
+    const modal_dlg = '#modal_upload_excel_events'
+    const file_input = '#input_upload_excel_events'
+
+    var file = $(file_input).get(0).files[0];
+
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        let fileData = e.target.result
+        let data = new Object();
+        data['csrf_token'] = $('#csrf_token').val();
+        //need to convert the buffer to an Array object for JSON.stringify to work
+        data['excel_data'] = Array.from(new Uint8Array(fileData));
+
+        post_request_api(api_path, JSON.stringify(data), true)
+        .done((data) => {
+            var str = '<ul style="list-style-type: none; padding: 0;">'
+            data.data.forEach(function(item) {
+                str += '<li>'+ item + '</li>';
+            }); 
+            str += '</ul> <i>Recoverable errors can be solved by fixing the error in your file and reuploading.</i>';
+
+            let msg = document.createElement('div')
+            msg.innerHTML = str
+
+            if (notify_auto_api(data)) {
+                apply_filtering();
+                $(modal_dlg).modal('hide')
+                swal({
+                    title: "Upload done. Any rows with errors are displayed below",
+                    icon: "success",
+                    content: msg,
+                })
+            } else {
+                swal({
+                    title: "That didn't work :(",
+                    icon: "error",
+                    content: msg,
+                })
+            }
+        })
+
+    };
+    //read in excel file as bytes
+    reader.readAsArrayBuffer(file)
+
+    return false;
+}
+
+
 function handleCollabNotifications(collab_data) {
    if (collab_data.action_type === "flagged") {
        uiFlagEvent(collab_data.object_id, true);
@@ -1362,6 +1689,54 @@ function generate_events_sample_csv(){
     csv_data += '"2023-03-26T03:00:30.000","+00:00","An event","Unspecified","Event description","raw","source","","","defender|malicious"\n'
     csv_data += '"2023-03-26T03:00:35.000","+00:00","An event","Legitimate","Event description","raw","source","","","defender|malicious"\n'
     download_file("sample_events.csv", "text/csv", csv_data);
+}
+
+function generate_events_sample_excel(){
+    let workbook = new ExcelJS.Workbook();
+    let worksheet = workbook.addWorksheet('Timeline');
+
+    worksheet.columns = [
+        { header: 'event_id', key: 'event_id' },
+        { header: 'event_date', key: 'event_date' },
+        { header: 'event_tz', key: 'event_tz' },
+        { header: 'event_title', key: 'event_title' },
+        { header: 'event_category', key: 'event_category' },
+        { header: 'event_content', key: 'event_content' },
+        { header: 'event_raw', key: 'event_raw' },
+        { header: 'event_source', key: 'event_source' },
+        { header: 'event_assets', key: 'event_assets' },
+        { header: 'event_iocs', key: 'event_iocs' },
+        { header: 'event_tags', key: 'event_tags' },
+    ];
+
+    worksheet.addRow({ event_id: "", event_date: "2023-03-26T03:00:30.000", event_tz: "+00:00", event_title: "An event", event_category: "Unspecified", event_content: "Event description", event_raw: "raw", event_source: "source", event_assets: "", event_iocs: "abc;123;def;456;", event_tags: "defender|malicious" });
+
+    // Unfreeze every column except event_id
+    for (let col_idx = 2; col_idx <= worksheet.columnCount; col_idx++) {
+        let col = worksheet.getColumn(col_idx);
+        col.protection = { locked: false, lockText: false };
+    }
+    // Freeze headers
+    let header_row = worksheet.getRow(1);
+    header_row.protection = { locked: true, lockText: true };
+
+    // Resize column width to largest value + a buffer
+    worksheet.columns.forEach(column => {
+        let lengths = column.values.map(v => v.toString().length);
+        let maxLength = Math.max(...lengths.filter(v => typeof v === 'number'));
+        column.width = maxLength + 1;
+    });
+
+    workbook.xlsx.writeBuffer().then(function (data) {
+        const blob = new Blob([data],
+            { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = "sample_events.xlsx";
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+    });
 }
 
 /* END_RS_CODE */
@@ -1399,7 +1774,309 @@ $(document).ready(function(){
         $('html, body').animate({ scrollTop: $('#time_'+id).offset().top - 180 });
     });
 
+    /****** changes start here  *******/
+
+    /* add filtering fields for each column of table of the page (must be done before datatable initialization) */
+    // $.each($.find("table"), function(index, element){
+    //     addFilterFields($(element).attr("id"));
+    // });
+
+    Table = $("#timeline_tabular").DataTable({
+        dom: '<"container-fluid"<"row"<"col"l><"col"f>>>rt<"container-fluid"<"row"<"col"i><"col"p>>>',
+        aaData: [],
+        fixedHeader: {
+            headerOffset: 47  // make header sticky only to top of the inner page
+        },
+        stateSave: true,
+        autoWidth: false,
+        aoColumns: [
+            {
+                "data": "event_date",  // LOCAL
+                "width": "11%",
+                "render": function(data) {
+                    let date = data.split(".")[0];
+                    return date;
+
+                }
+            },
+            { 
+                "data": "event_date_wtz",  // UTC
+                "width": "11%",
+                "render": function(data) {
+                    let date = data.split(".")[0];
+                    return date;
+                }
+            },
+            { 
+                "data": "event_title",  // Event Title
+                "width": "30%",
+                "render": function(data, type, row, meta) {
+                    if (type === 'display' && data != null) {
+                        let datak = '';
+                        
+                        // format event description
+                        let displayEventDesc = row['event_content'];
+                        cleanHTMLTags(displayEventDesc);
+                        displayEventDesc = ellipsis_field_raw(displayEventDesc, 900);
+                        let dataContent = typeof data === 'object' ? JSON.stringify(displayEventDesc) : displayEventDesc;
+                        
+                        let shareLink = buildShareLink(row['event_id']);
+
+                        // build hyperlink for event title, show event description when hover over
+                        let anchor = $('<a>')
+                            .attr('href', shareLink)
+                            .attr('data-event_id', row['event_id'])
+                            .attr('title', `Event ID #${row['event_id']}`)
+                            .attr('data-toggle', 'popover')
+                            .attr('data-trigger', 'hover')
+                            .attr('data-content', dataContent)
+                            .css('cursor', 'pointer')
+                            .addClass('event_details_link');
+
+                        if (isWhiteSpace(data) || data === null) {
+                            datak = '#' + row['event_id'];
+                            anchor.text(datak);
+                        } else {
+                            datak = ellipsis_field(data, 200);
+                            anchor.html(datak);
+                        }
+
+                        return anchor.prop('outerHTML');
+                    }
+                    return data;
+                }
+            },
+            {
+                "data": 'assets',  // Host
+                "width": "10%",
+                "render": function(data){
+                    // parse host data from assets
+
+                    if(data.length == 0) {
+                        return '';
+                    }
+                    else {
+                        var asset_link = '';
+
+                        // display each asset name on a line, hyperlink to route back to Assets
+                        data.forEach(function(asset){
+                            data_asset_name = asset.name;
+                            data_asset_name = ellipsis_field_raw(data_asset_name, 30);
+                        
+                            share_link = "/case/assets" + case_param();
+                            asset_link += '<a href="'+ share_link + '">' + data_asset_name + '</a>';
+                            asset_link += "<br/>";
+                        });
+                        data = asset_link;
+                    }
+                    return data;
+                }
+            },
+            {
+                "data": 'event_source',  // Artifact Path
+                "width": "10%",
+                "render": function(data){
+                    // parse event source as artifact path
+                    if (data == null || data == ""){
+                        return "";
+                    }
+                    else {
+                        data = ellipsis_field_raw(data, 30);
+                        return data;
+                    }
+                }
+            },
+            {
+                "data": 'assets',  // Internal IP
+                "width": "8%",
+                "render": function(data, type, row, meta){
+                    // parse internal IP data from assets
+                    if (type === 'display'  && data != null) {
+                        if(data.length == 0) {
+                            return '';
+                        }
+                        else {
+                            var asset_link = '';
+                            
+                            // display each asset IP on a line, hyperlink to route back to Assets
+                            data.forEach(function(asset){
+                                var ips = "";
+                                if(asset.ip == "" || asset.ip == null) {
+                                    asset_link += '';
+                                }
+                                else {
+                                    // only hyperlink if IP is a non-empty value
+                                    
+                                    let de = (asset.ip).split(',');
+                                    for (let ip in de) {
+                                        individual_ip = sanitizeHTML(de[ip]);
+                                        ips += get_ip_from_data(individual_ip, 'badge badge-light ml-2');
+                                    }
+                                    share_link = "/case/assets" + case_param();
+                                    asset_link += '<a href="' + share_link + '">' + ips + '</a>' + '<br/>';
+                                }
+                                
+                            });
+                            data = asset_link + '';
+                        }
+                    }
+                    return data;
+                }
+            },
+            {
+                "data": 'assets',  // External IP
+                "width": "8%",
+                "render": function(data, type, row, meta){
+                    // parse external IP data from assets
+                    if (type === 'display'  && data != null) {
+                        if(data.length == 0) {
+                            return '';
+                        }
+                        else {
+                            var asset_link = '';
+                            
+                            // display each asset IP on a line, hyperlink to route back to Assets
+                            data.forEach(function(asset){
+                                var ips = "";
+                                if(asset.ext_ip == "" || asset.ext_ip == null) {
+                                    asset_link += '';
+                                }
+                                else {
+                                    // only hyperlink if IP is a non-empty value
+                                    
+                                    let de = (asset.ext_ip).split(',');
+                                    for (let ip in de) {
+                                        individual_ip = sanitizeHTML(de[ip]);
+                                        ips += get_ip_from_data(individual_ip, 'badge badge-light ml-2');
+                                    }
+                                    share_link = "/case/assets" + case_param();
+                                    asset_link += '<a href="' + share_link + '">' + ips + '</a>' + '<br/>';
+                                }
+                                
+                            });
+                            data = asset_link;
+                        }
+                    }
+                    return data;
+                }
+            },
+            {
+                "data": "category_name",  // Event Category
+                "visible": false,
+                "width": "9%",
+                "render": function(data) {
+                    return data;
+                }
+            },
+            {
+                "data": "event_tags",  // Tags
+                "visible": false,
+                "width": "8%",
+                "render": function(data, type) {
+                    if (type === 'display' && data != null  ) {
+                        tags = "";
+                        de = data.split(',');
+                        for (tag in de) {
+                          individual_tag = sanitizeHTML(de[tag]);
+                          if (individual_tag == ""){
+                            individual_tag = null;
+                          }
+                          else {
+                            individual_tag = ellipsis_field_raw(individual_tag, 20); 
+                          }
+                          tags += get_tag_from_data(individual_tag, 'badge badge-light ml-2');
+                        }
+                        return tags;
+                    }
+                    return data;
+                }
+            },
+            {
+                "data": 'user',  // Reported By
+                "visible": false,
+                "width": "8%",
+                "render": function(data){
+                    return data;
+                }
+            },
+
+        ],
+        createdRow: function(row, data){
+            // update row color based on user's selection
+            $('td', row).css('background-color', data.event_color);
+        },
+        filter: true,
+        info: true,
+        ordering: true,
+        processing: true,
+        retrieve: true,
+        pageLength: 100,
+        // order: [[ 2, "asc" ]],
+        buttons: [
+        ],
+        responsive: {
+            details: {
+                display: $.fn.dataTable.Responsive.display.childRow,
+                renderer: $.fn.dataTable.Responsive.renderer.tableAll()
+            }
+        },
+        orderCellsTop: true,
+        initComplete: function () {
+            tableFiltering(this.api(), 'timeline_tabular', []);
+            $('div.dataTables_filter', this.api().table(). container()).attr('id', 'datatable_search_bar');
+        },
+        // add ability to select multiple rows
+        select: {
+            style: 'os'
+        }
+    });
+
+    $("#timeline_tabular").css("font-size", 12);
+
+    Table.on( 'responsive-resize', function ( e, datatable, columns ) {
+            hide_table_search_input( columns );
+    });
+
+
+    // change row status to 'selected'
+    Table.on('click', 'tbody tr', function (e) {
+        e.currentTarget.classList.toggle('selected');
+    });
+
+    // apply search 
+    $('#datatable_search_bar').keyup(function(){
+        Table.search($(this).val()).draw() ;
+    })
+
+    // prevent redirect to case #1 by default 
+    $('#datatable_search_bar').on("keypress", function(e){
+        if (e.which == 13) {
+            e.preventDefault();
+        }
+    })
+
+    // utils buttons
+    var buttons = new $.fn.dataTable.Buttons(Table, {
+        buttons: [
+           { "extend": 'csvHtml5', "text":'<i class="fas fa-cloud-download-alt"></i>',"className": 'btn btn-link text-white'
+           , "titleAttr": 'Download as Excel', "exportOptions": { "columns": ':visible', 'orthogonal':  'export' } } ,
+           { "extend": 'copyHtml5', "text":'<i class="fas fa-copy"></i>',"className": 'btn btn-link text-white'
+           , "titleAttr": 'Copy', "exportOptions": { "columns": ':visible', 'orthogonal':  'export' } },
+           { "extend": 'colvis', "text":'<i class="fas fa-eye-slash"></i>',"className": 'btn btn-link text-white'
+           , "titleAttr": 'Toggle columns' }
+       ]
+       }).container().appendTo($('#tables_button'));
+    
     get_or_filter_tm();
+
+    // get all case assets here for excel export
+    get_case_assets_from_external();
+    
+    // get all case iocs here for excel export
+    get_case_iocs_from_external();
+
+    // allow user to update timezone at any time
+    select_timezone();
 
     setInterval(function() { check_update('timeline/state'); }, 3000);
 

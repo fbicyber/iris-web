@@ -17,6 +17,161 @@ $.fn.serializeObject = function() {
 
 var jdata_menu_options = [];
 let current_cid = null;
+var full_assets = null;
+var full_iocs = null;
+
+function get_case_assets_from_external(){
+    /**
+     * Short query to get list of all assets, to be accessible outside of the assets tab
+     * Return: list of assets (as json), 
+     * Empty list if unsuccessful query
+     */
+
+    get_request_api('/case/assets/list')
+    .done(function (response) {
+        if (response.status == 'success') {
+            if (response.data != null) {
+                jsdata = response.data;
+                full_assets = jsdata.assets;
+            }
+            else {
+                full_assets = [];
+            }
+        }
+        else {
+            full_assets = [];
+        }
+    })
+    
+}
+
+
+function get_case_iocs_from_external(){
+    /**
+     * Short query to get list of all IOCs, to be accessible outside of the ioc tab
+     * Return: list of iocs (as json), 
+     * Empty list if unsuccessful query
+     */
+
+    get_request_api("/case/ioc/list")
+    .done(function (response) {
+        if (response.status == 'success') {
+            if (response.data != null) {
+                jsdata = response.data;
+                full_iocs = jsdata.ioc;
+            } else {
+                full_iocs = [];
+            }
+        } else {
+            full_iocs = [];
+        }
+    })
+}
+
+
+function addAssetsTabToExcel(assets_worksheet, assets) {
+    /**
+     * Given a reference to the worksheet and assets list, 
+     * populate the worksheet with proper columns and values from the list.
+     * 
+     * This has all assets.
+     */
+    
+    assets_worksheet.columns = [
+        { header: 'asset_id', key: 'asset_id'},
+        { header: 'asset_name', key: 'asset_name'},
+        { header: 'asset_type', key: 'asset_type'},
+        { header: 'asset_ip', key: 'asset_ip'},
+        { header: 'asset_external_ip', key: 'asset_external_ip'},
+        { header: 'asset_domain', key: 'asset_domain'},
+        { header: 'asset_description', key: 'asset_description' },
+        { header: 'asset_tags', key: 'asset_tags' },
+    ];
+
+    // add each asset and corresponding values to a row
+    for (index in assets){
+        let single_asset = assets[index]; 
+
+        assets_worksheet.addRow({asset_id: single_asset.asset_id, 
+            asset_name: single_asset.asset_name, 
+            asset_type: single_asset.asset_type, 
+            asset_ip: single_asset.asset_ip,
+            asset_external_ip: single_asset.asset_external_ip, 
+            asset_domain: single_asset.asset_domain, 
+            asset_description: single_asset.asset_description,
+            asset_tags: single_asset.asset_tags,
+        });
+        
+    }
+    
+    // Unfreeze every column except asset id
+    for(let col_idx = 1; col_idx <= assets_worksheet.columnCount; col_idx++){
+        let col = assets_worksheet.getColumn(col_idx);
+        if (col._header != "asset_id"){
+            col.protection = { locked: false, lockText: false };
+        }
+    }
+
+    // Freeze headers
+    let a_header_row = assets_worksheet.getRow(1);
+    a_header_row.protection = { locked: true, lockText: true };
+
+    // Resize column width to largest value + a buffer
+    assets_worksheet.columns.forEach(column => {
+        let lengths = column.values.map(v => v.toString().length);
+        let maxLength = Math.max(...lengths.filter(v => typeof v === 'number'));
+        column.width = maxLength+1;
+    });
+}
+
+
+function addIocsTabToExcel(iocs_worksheet, iocs) {
+    /**
+     * Given a reference to the worksheet and iocs list, 
+     * populate the worksheet with proper columns and values from the list.
+     */
+    
+    iocs_worksheet.columns = [
+        { header: 'ioc_id', key: 'ioc_id' },
+        { header: 'ioc_value', key: 'ioc_value' },
+        { header: 'ioc_type', key: 'ioc_type' },
+        { header: 'ioc_description', key: 'ioc_description'},
+        { header: 'ioc_tags', key: 'ioc_tags' },
+    ];
+
+    // add each asset and corresponding values to a row
+    for (index in iocs){
+        let single_iocs = iocs[index]; 
+
+        iocs_worksheet.addRow({ioc_id: single_iocs.ioc_id, 
+            ioc_value: single_iocs.ioc_value, 
+            ioc_type: single_iocs.ioc_type, 
+            ioc_description: single_iocs.ioc_description, 
+            ioc_tags: single_iocs.ioc_tags, 
+        });
+        
+    }
+    
+    // Unfreeze every column except ioc id
+    for(let col_idx = 1; col_idx <= iocs_worksheet.columnCount; col_idx++){
+        let col = iocs_worksheet.getColumn(col_idx);
+        if (col._header != "ioc_id"){
+            col.protection = { locked: false, lockText: false };
+        }
+    }
+
+    // Freeze headers
+    let i_header_row = iocs_worksheet.getRow(1);
+    i_header_row.protection = { locked: true, lockText: true };
+
+    // Resize column width to largest value + a buffer
+    iocs_worksheet.columns.forEach(column => {
+        let lengths = column.values.map(v => v.toString().length);
+        let maxLength = Math.max(...lengths.filter(v => typeof v === 'number'));
+        column.width = maxLength+1;
+    });
+}
+
 
 function clear_api_error() {
    $(".invalid-feedback").hide();
@@ -85,6 +240,19 @@ function ret_obj_dt_description(data) {
     return anchor.prop('outerHTML');
 }
 
+function isHTML(str) {
+    /**
+     * Return true if html tags are in str, else False
+     */
+    var doc = new DOMParser().parseFromString(str, "text/html");
+    return Array.from(doc.body.childNodes).some(node => node.nodeType === 1);
+}
+   
+function cleanHTMLTags(str) {
+    str = str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return str;
+} 
+
 function render_date(date, show_ms = false) {
     // Remove the timezone information and the ms
     let date_str = date.replace('T', ' ').replace('Z', '');
@@ -98,11 +266,17 @@ function render_date(date, show_ms = false) {
     return date_str;
 }
 
+
+function get_current_datetime_iso(){
+    let current_datetime = new Date().toISOString();
+    return current_datetime;
+}
+
 function ellipsis_field_raw( data, cutoff, wordbreak ) {
     if (data === undefined || data === null) {
         return '';
     }
-
+    
     if (data.length <= cutoff) {
         return data;
     }
@@ -204,6 +378,18 @@ function get_ioc_tag_from_data(data, classes) {
     tag_anchor.addClass(classes);
     tag_anchor.text(data);
     tag_anchor.html('<i class="fa-solid fa-virus"></i> ' + tag_anchor.html());
+
+    return tag_anchor.prop('outerHTML');
+}
+
+function get_ip_from_data(data, classes) {
+    if (data === undefined || data === null || data.length === 0) {
+        return '';
+    }
+    let tag_anchor = $('<span>');
+    tag_anchor.addClass(classes);
+    tag_anchor.text(data);
+    tag_anchor.html('<i class="fa-solid"></i>' + tag_anchor.html());
 
     return tag_anchor.prop('outerHTML');
 }
@@ -1218,7 +1404,6 @@ function load_menu_mod_options(data_type, table, deletion_fn, additionalOptions 
 }
 
 
-
 function get_custom_attributes_fields() {
     values = Object();
     has_error = [];
@@ -1703,9 +1888,9 @@ function do_deletion_prompt(message, force_prompt=false) {
 }
 
 function escapeHtml(text) {
-    let parser = new DOMParser();
-    let escapedDoc = parser.parseFromString(text, 'text/html');
-    return escapedDoc.documentElement.textContent;
+  let parser = new DOMParser();
+  let escapedDoc = parser.parseFromString(text, 'text/html');
+  return escapedDoc.documentElement.textContent;
 }
 
 function toBinary64(string) {

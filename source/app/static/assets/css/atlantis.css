@@ -6226,8 +6226,8 @@ label.error {
     border-top-width: 0px;
     border-bottom: 1px solid;
     border-color: #ebedf2 !important;
-    padding: 0 25px !important;
-    height: 60px;
+    padding: 0 18px !important;
+    height: 45px;
     vertical-align: middle !important;
 }
 
@@ -8305,7 +8305,6 @@ body .badge-danger {
     left: 6%;
     margin-left: -1.5px;
 }
-
 
 .timeline>li {
     position: relative;
@@ -13541,6 +13540,7 @@ div.dataTables_wrapper div.dataTables_length select {
 }
 
 div.dataTables_wrapper div.dataTables_filter {
+    display: none;
     text-align: right;
 }
 
@@ -13584,6 +13584,11 @@ div.dataTables_wrapper div.dataTables_processing {
     padding: 1em 0;
 }
 
+table.dataTable td {
+    overflow: hidden;
+    word-break: break-all;
+}
+    
 table.dataTable thead>tr>th.sorting_asc,
 table.dataTable thead>tr>th.sorting_desc,
 table.dataTable thead>tr>th.sorting,
@@ -16021,6 +16026,7 @@ td.dt-nowrap { white-space: nowrap }
     background: radial-gradient(#013479, #011d40) !important;
 }
 
+
 .notification:not(:empty).notification:not([text='0'])  {
     background: #c40101;
     color: white;
@@ -16035,7 +16041,7 @@ td.dt-nowrap { white-space: nowrap }
 
   .copy-btn {
     display: none;
-    position: absolute;
+     position: absolute;
     top: 50%;
     transform: translateY(-50%);
     border: none;

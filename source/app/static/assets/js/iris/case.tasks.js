@@ -240,7 +240,7 @@ function get_tasks() {
 
                 Table.columns.adjust().draw();
                 load_menu_mod_options('task', Table, delete_task);
-                //$('[data-toggle="popover"]').popover();
+                // $('[data-toggle="popover"]').popover();
                 Table.responsive.recalc();
 
                 $(document)
@@ -420,7 +420,11 @@ $(document).ready(function(){
                   let datas = "";
                   let de = data.split(',');
                   for (let tag in de) {
-                    datas += get_tag_from_data(de[tag], 'badge badge-light ml-2');
+                    individual_tag = sanitizeHTML(de[tag]);
+                    if(individual_tag.length > 20){
+                        individual_tag = individual_tag.substring(0, 20) + "...";
+                    } 
+                    datas += get_tag_from_data(individual_tag, 'badge badge-light ml-2');
                 }
                 return datas;
               }
@@ -449,6 +453,7 @@ $(document).ready(function(){
         orderCellsTop: true,
         initComplete: function () {
             tableFiltering(this.api(), 'tasks_table');
+            $('div.dataTables_filter', this.api().table(). container()).attr('id', 'datatable_search_bar');
         },
         select: true
     });
@@ -458,6 +463,18 @@ $(document).ready(function(){
             hide_table_search_input( columns );
     });
 
+    // apply search 
+    $('#datatable_search_bar').keyup(function(){
+        Table.search($(this).val()).draw() ;
+    })
+    
+    // prevent redirect to case #1 by default 
+    $('#datatable_search_bar').on("keypress", function(e){
+        if (e.which == 13) {
+            e.preventDefault();
+        }
+    })
+    
     var buttons = new $.fn.dataTable.Buttons(Table, {
          buttons: [
             { "extend": 'csvHtml5', "text":'<i class="fas fa-cloud-download-alt"></i>',"className": 'btn btn-link text-white'

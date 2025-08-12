@@ -18,11 +18,6 @@
                               <a class="dropdown-item" href="#" onclick='copy_object_link_md("evidence", {{rfile.id}});return false;'><i class="fa-brands fa-markdown mr-2"></i>Markdown Link</a>
                           </div>
                      </div>
-                    <button type="button" class="btn bg-transparent btn-xs" onclick="comment_element({{ rfile.id }}, 'evidences')" title="Comments">
-                        <span class="btn-label">
-                            <i class="fa-solid fa-comments"></i><span class="notification" id="object_comments_number">{{ comments_map|length if comments_map|length > 0 else '' }}</span>
-                        </span>
-                    </button>
                     {% endif %}
                         <button class="float-right btn bg-transparent" title="Minimize" onclick="modal_minimized('modal_add_rfiles', 'Edit evidence #{{rfile.id}}');"> <i class='fa fa-minus'></i> </button>
                         <button type="button" class="pull-right btn bg-transparent" data-dismiss="modal" aria-label="Close"><span
@@ -122,6 +117,14 @@
                                         </div>
                                     </div>
                                 </div>
+                                {% if rfile.id %}
+                                    <button type="button" class="btn btn-sm ml-2" onclick="comment_element({{ rfile.id }}, 'evidences')" title="Comments">
+                                        <span class="btn-label">
+                                            <i class="fa-solid fa-comments"></i><span>View Comments:  </span>
+                                            <span class="notification" id="object_comments_number">{{ comments_map|length if comments_map|length > 0 else ''}}</span>
+                                        </span>
+                                    </button>
+                                {% endif %}
                                 <div class="form-group">
                                     <p>Locally compute file information by selecting it below. <span class="text-danger">The file is not be uploaded on the server nor saved.</span></p>
                                     <input id="input_autofill" type="file">

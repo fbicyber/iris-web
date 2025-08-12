@@ -19,8 +19,10 @@
 # IMPORTS ------------------------------------------------
 import csv
 import json
+import io
 import urllib.parse
 from datetime import datetime
+from dateutil import parser, tz
 
 import marshmallow
 from flask import Blueprint
@@ -31,6 +33,8 @@ from flask import url_for
 from flask_login import current_user
 from flask_wtf import FlaskForm
 from sqlalchemy import and_
+from openpyxl import Workbook, load_workbook
+from io import BytesIO
 
 from app import db
 from app import app
@@ -54,13 +58,14 @@ from app.datamgmt.case.case_events_db import save_event_category
 from app.datamgmt.case.case_events_db import update_event_assets
 from app.datamgmt.case.case_events_db import update_event_iocs
 from app.datamgmt.case.case_iocs_db import get_ioc_by_value
+from app.datamgmt.manage.manage_cases_db import get_case_local_timezone, set_case_local_timezone
 from app.datamgmt.manage.manage_attribute_db import get_default_custom_attributes
 from app.datamgmt.states import get_timeline_state
 from app.datamgmt.states import update_timeline_state
-from app.forms import CaseEventForm
+from app.forms import CaseEventForm, TimelineForm
 from app.iris_engine.module_handler.module_handler import call_modules_hook
 from app.iris_engine.utils.collab import collab_notify
-from app.iris_engine.utils.common import parse_bf_date_format
+from app.iris_engine.utils.common import parse_bf_date_format, get_all_timezones
 from app.iris_engine.utils.tracker import track_activity
 from app.models import CompromiseStatus
 from app.models.authorization import CaseAccessLevel
@@ -89,7 +94,7 @@ case_timeline_blueprint = Blueprint('case_timeline',
                                     __name__,
                                     template_folder='templates')
 
-
+    
 @case_timeline_blueprint.route('/case/timeline', methods=['GET'])
 @ac_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_timeline(caseid, url_redir):
@@ -99,7 +104,176 @@ def case_timeline(caseid, url_redir):
     case = Cases.query.filter(Cases.case_id == caseid).first()
     form = FlaskForm()
 
-    return render_template("case_timeline.html", case=case, form=form)
+    # use custom form to collect local timezone
+    form = TimelineForm()
+    all_tz, all_tz_for_form = get_all_timezones()
+     
+    # setting the dropdown choices 
+    form.timezone.choices = all_tz_for_form
+
+    # get current local timezone from case
+    tz = get_case_local_timezone(caseid)
+    tz_id = 0
+    
+    # if no local timezone exists for this case, default to UTC which has id 12
+    if not tz:
+        tz = "UTC"
+        set_case_local_timezone(caseid, tz)
+        tz_id = 0
+        app.logger.debug("No local timezone found in db, defaulting to UTC")
+    else:
+        # if found timezone name in db, find the corresponding id
+        for index in all_tz:
+            if all_tz[index]["timezone"] == tz:
+                tz_id = index
+                app.logger.debug(f"Found index {index} for timezone {tz}")
+                break
+
+    timezone = {"id": tz_id, "timezone": tz, "offset" : all_tz[tz_id]["offset"]}
+    return render_template("case_timeline.html", case=case, form=form, timezone=timezone)
+
+
+@case_timeline_blueprint.route('/case/timeline/select-timezone', methods=['POST'])
+@ac_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
+def case_timeline_timezone(caseid, url_redir):
+    if url_redir:
+        return redirect(url_for('case_timeline.case_timeline_timezone', cid=caseid, redirect=True))
+    jsdata = request.get_json()
+
+    # error checking for jsdata, expecting jsdata as a string of an int, i.e. "0"
+    if jsdata == None:
+        jsdata = "0"
+
+    # get the timezone name based on the timezone id (what jsdata returns)
+    all_tz, all_tz_for_form = get_all_timezones()
+    timezone = all_tz[int(jsdata)]["timezone"]
+    offset = all_tz[int(jsdata)]["offset"]
+
+    app.logger.info(f"User selected local timezone {jsdata}: {timezone}")
+
+    # add timezone to cases db
+    set_case_local_timezone(caseid, timezone)
+    data = {
+        "id": int(jsdata),
+        "timezone": timezone,
+        "offset": offset
+    }
+   
+    # updating the timezone in all of the events
+    condition = (CasesEvent.case_id == caseid)
+
+    timeline = CasesEvent.query.with_entities(
+        CasesEvent.event_id,
+        CasesEvent.event_uuid,
+        CasesEvent.event_date,
+        CasesEvent.event_date_wtz,
+        CasesEvent.event_tz,
+        CasesEvent.event_title,
+        CasesEvent.event_color,
+        CasesEvent.event_tags,
+        CasesEvent.event_content,
+        CasesEvent.event_in_summary,
+        CasesEvent.event_in_graph,
+        EventCategory.name.label("category_name"),
+        EventCategory.id.label("event_category_id")
+    ).filter(condition).order_by(
+        CasesEvent.event_date
+    ).outerjoin(
+        CasesEvent.category
+    ).all()
+
+    assets_cache = (CaseAssets.query.with_entities(
+        CaseEventsAssets.event_id,
+        CaseAssets.asset_id,
+        CaseAssets.asset_name,
+        CaseAssets.asset_domain,
+        AssetsType.asset_name.label('type'),
+        CaseAssets.asset_ip,
+        CaseAssets.asset_external_ip,
+        CaseAssets.asset_description,
+        CaseAssets.asset_compromise_status_id
+    ).join(CaseEventsAssets.asset)
+     .join(CaseAssets.asset_type).all())
+
+    iocs_cache = CaseEventsIoc.query.with_entities(
+        CaseEventsIoc.event_id,
+        CaseEventsIoc.ioc_id,
+        Ioc.ioc_value,
+        Ioc.ioc_description
+    ).join(
+        CaseEventsIoc.ioc
+    ).all()
+
+    tim = []
+    for row in timeline:
+        ras = row._asdict()
+
+        try:
+            event = get_case_event(ras['event_id'], caseid)
+            if not event:
+                return response_error("Invalid event ID for this case")
+            
+            alki = []
+            for asset in assets_cache:
+
+                if asset.event_id == ras['event_id']:
+                    alki.append(asset.asset_id)
+
+            ras['event_assets'] = alki
+
+            alki = []
+            for ioc in iocs_cache:
+                if ioc.event_id == ras['event_id']:
+                    alki.append(ioc.ioc_id)
+
+            ras['event_iocs'] = alki
+
+            event_schema = EventSchema()
+
+            ras['event_date_wtz'] = (ras['event_date_wtz']).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            ras['event_date'] = (ras['event_date']).strftime("%Y-%m-%dT%H:%M:%S.%f")
+  
+            event = event_schema.load(ras, instance=event)
+
+            event.event_date, event.event_date_wtz = event_schema.validate_date(
+                ras['event_date_wtz'],
+                offset
+            )
+            copy_event_wtz_datetime = event.event_date_wtz
+
+            # get user's local timezone, convert input time to UTC time and Local time
+            local_tz_name = get_case_local_timezone(caseid)
+            local_tz = tz.gettz(local_tz_name)
+
+            # convert input timestamp to UTC, then adapt format into string using strftime
+            event.event_date_wtz = (event.event_date_wtz).astimezone(tz.UTC)
+            event.event_date_wtz = (event.event_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+            # convert input timestamp to LOCAL TZ, then adapt format into string using strftime
+            event.event_date = (copy_event_wtz_datetime).astimezone(local_tz)
+            event.event_date = (event.event_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+            event.case_id = caseid
+            add_obj_history_entry(event, 'updated')
+
+            update_timeline_state(caseid=caseid)
+            db.session.commit()
+
+            event = call_modules_hook('on_postload_event_update', data=event, caseid=caseid)
+
+            track_activity(f"updated event \"{event.event_title}\"", caseid=caseid)
+            event_dump = event_schema.dump(event)
+            collab_notify(case_id=caseid,
+                        object_type='events',
+                        action_type='updated',
+                        object_id=ras['event_id'],
+                        object_data=event_dump)
+
+        except marshmallow.exceptions.ValidationError as e:
+            return response_error(msg="Data error", data=e.normalized_messages())
+
+    return response_success(msg=f"Successfully changed local timezone to {timezone}.", data=data)
+
 
 
 @case_timeline_blueprint.route('/case/timeline/visualize', methods=['GET'])
@@ -348,8 +522,8 @@ def case_gettimeline_api(asset_id, caseid):
     tim = []
     for row in timeline:
         ras = row._asdict()
-        ras['event_date'] = ras['event_date'].strftime('%Y-%m-%dT%H:%M:%S.%f')
-        ras['event_date_wtz'] = ras['event_date_wtz'].strftime('%Y-%m-%dT%H:%M:%S.%f')
+        ras['event_date'] = ras['event_date'].strftime('%Y-%m-%dT%H:%M:%S')
+        ras['event_date_wtz'] = ras['event_date_wtz'].strftime('%Y-%m-%dT%H:%M:%S')
 
         alki = []
         cache = {}
@@ -494,9 +668,11 @@ def case_filter_timeline(caseid):
         CasesEvent.event_color,
         CasesEvent.event_tags,
         CasesEvent.event_content,
+        CasesEvent.event_source,
         CasesEvent.event_in_summary,
         CasesEvent.event_in_graph,
         CasesEvent.event_is_flagged,
+        CasesEvent.event_raw,
         CasesEvent.parent_event_id,
         User.user,
         CasesEvent.event_added,
@@ -523,8 +699,10 @@ def case_filter_timeline(caseid):
         CaseEventsAssets.event_id,
         CaseAssets.asset_id,
         CaseAssets.asset_name,
+        CaseAssets.asset_domain,
         AssetsType.asset_name.label('type'),
         CaseAssets.asset_ip,
+        CaseAssets.asset_external_ip,
         CaseAssets.asset_description,
         CaseAssets.asset_compromise_status_id
     ).filter(
@@ -610,8 +788,12 @@ def case_filter_timeline(caseid):
             if asset.event_id == ras['event_id']:
                 alki.append(
                     {
-                        "name": "{} ({})".format(asset.asset_name, asset.type),
+                        "id": asset.asset_id,
+                        # "name": "{} ({})".format(asset.asset_name, asset.type),
+                        "name": "{}".format(asset.asset_name),
+                        "domain": asset.asset_domain,
                         "ip": asset.asset_ip,
+                        "ext_ip": asset.asset_external_ip,
                         "description": asset.asset_description,
                         "compromised": asset.asset_compromise_status_id == CompromiseStatus.compromised.value
                     }
@@ -782,6 +964,18 @@ def case_edit_event(cur_id, caseid):
             request_data.get(u'event_tz')
         )
 
+        # get user's local timezone, convert input time to UTC time and Local time
+        local_tz_name = get_case_local_timezone(caseid)
+        local_tz = tz.gettz(local_tz_name)
+
+        # convert input timestamp to UTC, then adapt format into string using strftime
+        event.event_date_wtz = (event.event_date).astimezone(tz.UTC)
+        event.event_date_wtz = (event.event_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
+        
+        # convert input timestamp to LOCAL TZ, then adapt format into string using strftime
+        event.event_date = (event.event_date).astimezone(local_tz)
+        event.event_date = (event.event_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+
         event.case_id = caseid
         add_obj_history_entry(event, 'updated')
 
@@ -859,9 +1053,23 @@ def case_add_event(caseid):
 
         event = event_schema.load(request_data)
 
-        event.event_date, event.event_date_wtz = event_schema.validate_date(request_data.get(u'event_date'),
-                                                                            request_data.get(u'event_tz'))
+        event.event_date, event.event_date_wtz = event_schema.validate_date(
+            request_data.get(u'event_date'),
+            request_data.get(u'event_tz')
+        )
 
+        # get user's local timezone, convert input time to UTC time and Local time
+        local_tz_name = get_case_local_timezone(caseid)
+        local_tz = tz.gettz(local_tz_name)
+
+        # convert input timestamp to UTC, then adapt format into string using strftime
+        event.event_date_wtz = (event.event_date).astimezone(tz.UTC)
+        event.event_date_wtz = (event.event_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
+        
+        # convert input timestamp to LOCAL TZ, then adapt format into string using strftime
+        event.event_date = (event.event_date).astimezone(local_tz)
+        event.event_date = (event.event_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+  
         event.case_id = caseid
         event.event_added = datetime.utcnow()
         event.user_id = current_user.id
@@ -979,15 +1187,252 @@ def case_event_date_convert(caseid):
 
     if parsed_date:
         tz = parsed_date.strftime("%z")
+
+        
         data = {
             "date": parsed_date.strftime("%Y-%m-%d"),
             "time": parsed_date.strftime("%H:%M:%S.%f")[:-3],
-            "tz": tz if tz else "+00:00"
-        }
+            "tz": tz if tz else "+00:00",
+            "msg": "" if tz else "WARNING! No timezone was included in the timestamp, defaulting timezone to UTC."
+        }        
         return response_success("Date parsed", data=data)
 
     return response_error("Unable to find a matching date format")
 
+
+@case_timeline_blueprint.route('/case/timeline/events/excel_upload', methods=['POST'])
+@ac_api_case_requires(CaseAccessLevel.full_access)
+def case_events_upload_excel(caseid):
+    event_schema = EventSchema()
+
+    jsdata = request.get_json()
+    if not jsdata or "excel_data" not in jsdata:
+        return response_error(msg="Unable to get data imported from Excel", data={"Exception": f"Unable to get data imported from Excel"})
+
+    app.logger.info("Starting Excel import")
+    event_fields = [
+        "event_id",
+        "event_date",
+        "event_tz",
+        "event_title",
+        "event_category",
+        "event_content",
+        "event_raw",
+        "event_source",
+        "event_assets",
+        "event_iocs",
+        "event_tags",
+    ]
+    list_of_errors = []
+
+    # excel data is received as an array of numbers, actually uint8 converted by js
+    excel_data_bytes = jsdata["excel_data"]
+
+    # convert the array of numbers to a byte array, then a bytestring, then a mock(?) file object for load_workbook to read
+    workbook = load_workbook(BytesIO(bytes(bytearray(excel_data_bytes))))
+    worksheet = workbook.worksheets[0]
+    excel_lines = []
+    for i, row in enumerate(worksheet):
+        if i == 0:
+            headers = [cell.value for cell in row]
+            missing_fields = [fld for fld in event_fields if fld not in headers]
+            if len(missing_fields) > 0:
+                msg = f"Bad XLSX Fields Mapping. Fields missing: [{','.join(missing_fields)}]"
+                data = {"error_code": "BAD_FIELDS_MAPPING", "expected": ','.join(event_fields), "found": ','.join(headers),
+                        "missing": ','.join(missing_fields)}
+                app.logger.warning(data)
+
+                return response_error(msg=msg, data=data)
+        else:
+            line = []
+            for i, cell in enumerate(row):
+                line.append(cell.value)
+            excel_lines.append(line)
+    
+    DEFAULT_CAT_ID = get_default_category().id
+
+    import_error = False
+    # ==========================  checking data validity (assets, ioc, categories, etc... )  ==========================
+    row_index = 1
+    excel_lines_to_save = []
+    for row in excel_lines:
+        try:
+            row_index += 1
+            if not any(row):
+                continue
+            row_to_save = {}
+            event_title = str(row[headers.index('event_title')])
+            event_assets = row[headers.index('event_assets')]
+            event_iocs = row[headers.index('event_iocs')]
+            event_tags = row[headers.index('event_tags')]
+            event_category_name = row[headers.index('event_category')]
+            
+            if event_title is None or len(event_title) == 0:
+                app.logger.error(f"Recoverable error in row {row_index}, Event Title can not be empty.")
+                list_of_errors.append(f"Recoverable error in row {row_index}, Event Title can not be empty.")
+                import_error = True
+            else:
+                row_to_save['event_title'] = event_title
+
+            assets = []
+            if event_assets and event_assets != '':
+                for asset_name in event_assets.split(";"):
+                    if asset_name == '':
+                        continue
+                    
+                    asset = get_asset_by_name(asset_name, caseid)
+                    if asset:
+                        assets.append(asset.asset_id)
+                    else:
+                        app.logger.error(f"Recoverable error in row {row_index}, Asset not recognized: {asset_name}.")
+                        list_of_errors.append(f"Recoverable error in row {row_index}, Asset not recognized: {asset_name}.")
+                        import_error = True
+            row_to_save['event_assets'] = assets
+
+            iocs = []
+            if event_iocs and event_iocs != '':
+                for ioc_value in event_iocs.split(";"):
+                    if ioc_value == '':
+                        continue
+                    ioc = get_ioc_by_value(ioc_value, caseid)
+                    if ioc:
+                        iocs.append(ioc.ioc_id)
+                    else:
+                        app.logger.error(f"Recoverable error in row {row_index}, IoC not recognized: {ioc_value}.")
+                        list_of_errors.append(f"Recoverable error in row {row_index}, IoC not recognized: {ioc_value}.")
+                        import_error = True
+            row_to_save['event_iocs'] = iocs
+
+            if (event_category_name is not None) and (event_category_name != ''):
+                try:
+                    event_category = get_category_by_name(event_category_name)
+                    row_to_save['event_category_id'] = event_category.id
+                except Exception as e:
+                    app.logger.error(f"Recoverable error in row {row_index}, event_category not recognized: {event_category_name}.")
+                    list_of_errors.append(f"Recoverable error in row {row_index}, event_category not recognized: {event_category_name}.")
+                    import_error = True
+                    row_to_save['event_category_id'] = DEFAULT_CAT_ID
+            else:
+                row_to_save['event_category_id'] = DEFAULT_CAT_ID
+
+            row_to_save['event_tags'] = ""
+            if event_tags and event_tags != '':
+                row_to_save['event_tags'] = ','.join(event_tags.split('|'))
+
+            event_date = row[headers.index('event_date')]
+            event_date = event_date.split('.')
+            # Iris cannot take anything after 6 decimal places, need to scrub out anything after that
+            if len(event_date) > 1:
+                event_date[1] = event_date[1][:6]
+            event_date = '.'.join(event_date)
+            if row[headers.index('event_id')]:
+                row_to_save['event_id'] = row[headers.index('event_id')]
+            row_to_save['event_date'] = event_date
+            row_to_save['event_tz'] = row[headers.index('event_tz')]
+            row_to_save['event_content'] = str(row[headers.index('event_content')])
+            row_to_save['event_raw'] = str(row[headers.index('event_raw')])
+            row_to_save['event_source'] = str(row[headers.index('event_source')])
+            app.logger.info(f"Appending row {row_index}")
+            excel_lines_to_save.append(row_to_save)
+        except Exception as e:
+            return response_error(msg="Data error", data={"Exception": f"Unhandled error {e}.\nrow number: {row_index}"})
+    # ========================== begin saving data ============================
+    session = db.session.begin_nested()
+    row_index = 1
+    for row in excel_lines_to_save:
+        if row is None:
+            continue
+        row_index += 1
+        app.logger.info(f"Saving ROW {row_index}")
+
+        try:
+            if "event_id" in row:
+                request_data = call_modules_hook('on_preload_event_update', data=row, caseid=caseid)
+            else:
+                request_data = call_modules_hook('on_preload_event_create', data=row, caseid=caseid)
+
+            event = event_schema.load(request_data)
+
+
+            if "event_id" not in row:
+                event.event_added = datetime.utcnow()
+                event.user_id = current_user.id
+                add_obj_history_entry(event, 'created')
+
+            event.event_date, event.event_date_wtz = event_schema.validate_date(
+                request_data.get(u'event_date'),
+                request_data.get(u'event_tz')
+            )
+            
+            # get user's local timezone, convert input time to UTC time and Local time
+            local_tz_name = get_case_local_timezone(caseid)
+            local_tz = tz.gettz(local_tz_name)
+
+            # convert input timestamp to UTC, then adapt format into string using strftime
+            event.event_date_wtz = (event.event_date).astimezone(tz.UTC)
+            event.event_date_wtz = (event.event_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            
+            # convert input timestamp to LOCAL TZ, then adapt format into string using strftime
+            event.event_date = (event.event_date).astimezone(local_tz)
+            event.event_date = (event.event_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+            event.case_id = caseid
+
+            db.session.add(event)
+            update_timeline_state(caseid=caseid)
+
+            save_event_category(event.event_id, request_data.get('event_category_id'))
+
+            setattr(event, 'event_category_id', request_data.get('event_category_id'))
+
+            success, log = update_event_assets(event_id=event.event_id,
+                                                caseid=caseid,
+                                                assets_list=request_data.get('event_assets'),
+                                                iocs_list=request_data.get('event_iocs'),
+                                                sync_iocs_assets=True)
+            if not success:
+                app.logger.error(f"Unrecoverable error in row {row_index} while saving linked assets.")
+                list_of_errors.append(f"Unrecoverable error in row {row_index} while saving linked assets.")
+                import_error = True
+                raise Exception(f'Error while saving linked assets for row {row_index}\nlog:{log}')
+
+            success, log = update_event_iocs(event_id=event.event_id,
+                                                caseid=caseid,
+                                                iocs_list=request_data.get('event_iocs'))
+            if not success:
+                app.logger.error(f"Unrecoverable error in row {row_index} while saving linked iocs.")
+                list_of_errors.append(f"Unrecoverable error in row {row_index} while saving linked iocs.")
+                import_error = True
+                raise Exception(f'Error while saving linked iocs for row {row_index}\nlog:{log}')
+
+            setattr(event, 'event_category_id', request_data.get('event_category_id'))
+
+            if "event_id" in row:
+                event = call_modules_hook('on_postload_event_update', data=event, caseid=caseid)
+                track_activity("updated event {}".format(event.event_id), caseid=caseid)
+            else:
+                event = call_modules_hook('on_postload_event_create', data=event, caseid=caseid)
+                track_activity("added event {}".format(event.event_id), caseid=caseid)
+        except marshmallow.exceptions.ValidationError as e:
+            app.logger.error(f"Recoverable error in row {row_index} while validating, Exception: {e}")
+            list_of_errors.append(f"Recoverable error in row {row_index} while validating, Exception: {e}")
+            import_error = True
+
+        except Exception as e:
+            app.logger.error(f"Unrecoverable error in row {row_index} at unknown point, Exception: {e}")
+            list_of_errors.append(f"Unrecoverable error in row {row_index} at unknown point, Exception: {e}")
+            import_error = True
+
+    try:
+        session.commit()
+    except:
+        pass
+
+    app.logger.info("======================== END_EXCEL_IMPORT ==========================================")
+    if not import_error:
+        return response_success(msg="Events added with no errors (Excel File)")
+    else:
+        return response_success(msg=f"Events added with errors: {list_of_errors}", data=list_of_errors)
 
 # BEGIN_RS_CODE
 @case_timeline_blueprint.route('/case/timeline/events/csv_upload', methods=['POST'])
@@ -1053,7 +1498,7 @@ def case_events_upload_csv(caseid):
             line += 1
 
             if len(event_title) == 0:
-                return response_error(msg=f"Data error",
+                return response_error(msg="Data error",
                                       data={"Error": f"Event Title can not be empty.\nrow number: {line}"})
 
             assets = []
@@ -1064,7 +1509,7 @@ def case_events_upload_csv(caseid):
                 if asset:
                     assets.append(asset.asset_id)
                 else:
-                    return response_error(msg=f"Data error", data={
+                    return response_error(msg="Data error", data={
                         "Error": f"Asset not recognized : {asset_name}.\nrow number: {line}"})
 
             row['event_assets'] = assets
@@ -1077,7 +1522,7 @@ def case_events_upload_csv(caseid):
                 if ioc:
                     iocs.append(ioc.ioc_id)
                 else:
-                    return response_error(msg=f"Data error",
+                    return response_error(msg="Data error",
                                           data={"Error": f"IoC not recognized : {ioc_value}.\nrow number: {line}"})
             row['event_iocs'] = iocs
 
@@ -1086,7 +1531,7 @@ def case_events_upload_csv(caseid):
                 if event_category:
                     row['event_category_id'] = event_category.id
                 else:
-                    return response_error(msg=f"Data error", data={
+                    return response_error(msg="Data error", data={
                         "Error": f"event_category not recognized : {event_category}.\nrow number: {line}"})
             else:
                 row['event_category_id'] = DEFAULT_CAT_ID
@@ -1100,7 +1545,7 @@ def case_events_upload_csv(caseid):
 
             csv_lines.append(row)
     except Exception as e:
-        return response_error(msg=f"Data error", data={"Exception": f"Unhandled error {e}.\nrow number: {line}"})
+        return response_error(msg="Data error", data={"Exception": f"Unhandled error {e}.\nrow number: {line}"})
 
     # ========================== begin saving data ============================
     session = db.session.begin_nested()
@@ -1113,8 +1558,23 @@ def case_events_upload_csv(caseid):
 
             request_data = call_modules_hook('on_preload_event_create', data=row, caseid=caseid)
             event = event_schema.load(request_data)
-            event.event_date, event.event_date_wtz = event_schema.validate_date(request_data.get(u'event_date'),
-                                                                                request_data.get(u'event_tz'))
+            event.event_date, event.event_date_wtz = event_schema.validate_date(
+                request_data.get(u'event_date'),
+                request_data.get(u'event_tz')
+            )
+
+            # get user's local timezone, convert input time to UTC time and Local time
+            local_tz_name = get_case_local_timezone(caseid)
+            local_tz = tz.gettz(local_tz_name)
+
+            # convert input timestamp to UTC, then adapt format into string using strftime
+            event.event_date_wtz = (event.event_date).astimezone(tz.UTC)
+            event.event_date_wtz = (event.event_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            
+            # convert input timestamp to LOCAL TZ, then adapt format into string using strftime
+            event.event_date = (event.event_date).astimezone(local_tz)
+            event.event_date = (event.event_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            
             event.case_id = caseid
             event.event_added = datetime.utcnow()
             event.user_id = current_user.id
@@ -1152,7 +1612,7 @@ def case_events_upload_csv(caseid):
         return response_error(msg="Data error", data=e.normalized_messages())
 
     except Exception as e:
-        return response_error(msg=f"Data error", data={"Error": f"{e}"})
+        return response_error(msg="Data error", data={"Error": f"{e}"})
 
     # db.session.commit()
     try:

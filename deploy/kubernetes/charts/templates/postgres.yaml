@@ -61,7 +61,7 @@ spec:
           - name: POSTGRES_USER  # Setting Database username
             value: {{ .Values.postgres.POSTGRES_USER | quote }}
 
-          - name:  POSTGRES_PASSWORDD # Setting Database password
+          - name:  POSTGRES_PASSWORD # Setting Database password
             value: {{ .Values.postgres.POSTGRES_PASSWORD | quote }}
 
           - name:  POSTGRES_ADMIN_USER # Setting Database admin user 

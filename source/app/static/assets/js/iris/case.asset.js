@@ -22,6 +22,50 @@ function edit_in_asset_desc() {
     }
 }
 
+function validate_ip_address(ipaddress, id=null, message_label=null) {  
+    /**
+     * Helper function to validate IP address on client side
+     * Display error message if IP address is invalid
+     * 
+     * _ipaddress: the input IP address
+     * _id: element id for the form where user inputs the ip address
+     * _message_label: element id for the label that'd appear if the ip address is invalid
+     * 
+     * Return: true if empty or valid IP address, false otherwise
+     */
+
+    let valid = false;
+    
+    // error check for empty IPs, if user does not enter anything, this should pass
+
+    if (ipaddress == ""){
+        return true;
+    }
+
+    ip_list = ipaddress.split(",")
+
+    if (ip_list == []){
+        return true;
+    }
+    else {
+        for (index in ip_list){
+            if (/^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ip_list[index])) {  
+                valid = true;
+            }
+            else {
+                if (id != null){
+                    id.attr("class", 'form-control border border-danger');
+                }
+                if(message_label != null) {
+                    message_label.attr("hidden", false);
+                }
+                return false;
+            }
+        } 
+        return valid;  
+    }
+}
+
 /* Fetch a modal that is compatible with the requested asset type */
 function add_assets() {
     url = 'assets/add/modal' + case_param();
@@ -69,7 +113,17 @@ function add_assets() {
                 let has_error = ret[0].length > 0;
                 let attributes = ret[1];
 
-                if (has_error) {
+                // error checking IP address client side
+                data['asset_ip'] = data['asset_ip'].replace(/\s+/g, '');
+                data['asset_external_ip'] = data['asset_external_ip'].replace(/\s+/g, '');
+
+                let asset_ip = data['asset_ip'];
+                let asset_external_ip = data['asset_external_ip'];
+
+                let validate_ip = validate_ip_address(asset_ip, id=($('#asset_ip')), message_label=($('#asset_ip_message'))); 
+                let validate_ext_ip = validate_ip_address(asset_external_ip, id=($('#asset_external_ip')), message_label=($('#asset_ext_ip_message')));
+
+                if (has_error || (!validate_ext_ip || !validate_ip)) {
                     return false;
                 }
 
@@ -284,7 +338,19 @@ function update_asset(do_close){
     has_error = ret[0].length > 0;
     attributes = ret[1];
 
-    if (has_error){return false;}
+    // error checking IP address client side
+    data['asset_ip'] = data['asset_ip'].replace(/\s+/g, '');
+    data['asset_external_ip'] = data['asset_external_ip'].replace(/\s+/g, '');
+
+    let asset_ip = data['asset_ip'];
+    let asset_external_ip = data['asset_external_ip'];
+
+    let validate_ip = validate_ip_address(asset_ip, id=($('#asset_ip')), message_label=($('#asset_ip_message'))); 
+    let validate_ext_ip = validate_ip_address(asset_external_ip, id=($('#asset_external_ip')), message_label=($('#asset_ext_ip_message')));
+
+    if (has_error || (!validate_ext_ip || !validate_ip)) {
+        return false;
+    }
 
     data['custom_attributes'] = attributes;
 
@@ -342,7 +408,7 @@ function upload_assets() {
 }
 
 function generate_sample_csv(){
-    csv_data = "asset_name,asset_type_name,asset_description,asset_ip,asset_domain,asset_tags\n"
+    csv_data = "asset_name,asset_type_name,asset_description,asset_ip,asset_external_ip,asset_domain,asset_tags\n"
     csv_data += '"My computer","Mac - Computer","Computer of Mme Michu","192.168.15.5","iris.local","Compta|Mac"\n'
     csv_data += '"XCAS","Windows - Server","Xcas server","192.168.15.48","iris.local",""'
     download_file("sample_assets.csv", "text/csv", csv_data);
@@ -370,17 +436,22 @@ $(document).ready(function(){
                     const container = document.createElement('div');
 
                     let datak = "";
-                    if (row['asset_domain']) {
-                        datak = row['asset_domain'] + "\\" + data;
-                    } else {
-                        datak = data;
-                    }
-                    if (data.length > 60) {
-                        datak = data.slice(0, 60) + " (..)";
-                    }
-                    if (isWhiteSpace(data)) {
-                        datak = '#' + row['asset_id'];
-                    }
+                    if ("asset_domain" in row && row['asset_domain']) {
+                            datak = sanitizeHTML(row['asset_domain'])+"\\"+ sanitizeHTML(data);
+                        } else {
+                            datak = sanitizeHTML(data);
+                        }
+
+                        datak = ellipsis_field_raw(datak, 40);
+
+                        // clean html tags from asset name
+                        if(isHTML(datak)){
+                            datak = cleanHTMLTags(datak);
+                        }
+                        if (isWhiteSpace(data)) {
+                            datak = '#' + row['asset_id'];
+                        }
+
 
                     let compro = "";
 
@@ -454,7 +525,29 @@ $(document).ready(function(){
           { "data": "asset_ip",
              "render": function (data, type, row, meta) {
                 if (type === 'display'  && data != null) {
-                    return ret_obj_dt_description(data);
+                    let ips = "";
+                    let de = data.split(',');
+                    for (let ip in de) {
+                        individual_ip = sanitizeHTML(de[ip]);
+                        ips += get_ip_from_data(individual_ip, 'badge badge-light ml-2');
+                    }
+                    return ips;
+                    
+                }
+                return data;
+              }
+          },
+          { "data": "asset_external_ip",
+             "render": function (data, type, row, meta) {
+                if (type === 'display'  && data != null) {
+                    let ips = "";
+                    let de = data.split(',');
+                    for (let ip in de) {
+                        individual_ip = sanitizeHTML(de[ip]);
+                        ips += get_ip_from_data(individual_ip, 'badge badge-light ml-2');
+                    }
+                    return ips;
+                    
                 }
                 return data;
               }
@@ -487,12 +580,14 @@ $(document).ready(function(){
           { "data": "asset_tags",
             "render": function (data, type, row, meta) {
               if (type === 'display' && data != null  ) {
-                  let tags = "";
-                  let de = data.split(',');
-                  for (let tag in de) {
-                      tags += get_tag_from_data(de[tag], 'badge badge-light ml-2');
-                  }
-                  return tags;
+                    let tags = "";
+                    let de = data.split(',');
+                    for (let tag in de) {
+                        individual_tag = sanitizeHTML(de[tag]);
+                        individual_tag = ellipsis_field_raw(individual_tag, 20);  
+                        tags += get_tag_from_data(individual_tag, 'badge badge-light ml-2');
+                    }
+                    return tags;
               }
               return data;
             }
@@ -535,6 +630,7 @@ $(document).ready(function(){
         orderCellsTop: true,
         initComplete: function () {
             tableFiltering(this.api(), 'assets_table');
+            $('div.dataTables_filter', this.api().table(). container()).attr('id', 'datatable_search_bar');
         },
         select: true
     });
@@ -543,6 +639,18 @@ $(document).ready(function(){
     Table.on( 'responsive-resize', function ( e, datatable, columns ) {
             hide_table_search_input( columns );
     });
+
+    // apply search 
+    $('#datatable_search_bar').keyup(function(){
+        Table.search($(this).val()).draw() ;
+    })
+
+    // prevent redirect to case #1 by default 
+    $('#datatable_search_bar').on("keypress", function(e){
+        if (e.which == 13) {
+            e.preventDefault();
+        }
+    })
 
     var buttons = new $.fn.dataTable.Buttons(Table, {
      buttons: [

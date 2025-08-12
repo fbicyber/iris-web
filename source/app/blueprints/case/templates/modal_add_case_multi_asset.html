@@ -48,7 +48,7 @@
                                         </div>
                                         <div class="row" style="margin-left:0px;">
                                             <div class="col-12" id="container_asset_desc_content">
-                                                <div id="asset_description" contenteditable="true" spellcheck="true" class="mr-2" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}">{% if asset %}{{ asset.asset_description  }}{% endif %}</div>
+                                                <div id="asset_description" class="mr-2" contenteditable="true" spellcheck="true" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}">{% if asset %}{{ asset.asset_description  }}{% endif %}</div>
                                                 <textarea id="asset_desc_content" rows="10" cols="82" style="display: none"></textarea>
                                             </div>
                                             <div class="col-12" id="container_asset_description" style="display:none">
@@ -58,13 +58,19 @@
                                     </div>
                                 </div>
                                 <div class="form-row ml-2">
-                                    <div class="form-group col-6">
+                                    <div class="form-group col-4">
                                             <label for="asset_domain" class="placeholder">Domain</label>
                                             {{ form.asset_domain(class='form-control',  autocomplete="off") }}
                                     </div>
-                                    <div class="form-group col-6">
-                                            <label for="asset_ip" class="placeholder">IP</label>
+                                    <div class="form-group col-4">
+                                            <label for="asset_ip" class="placeholder">Internal IP</label>
                                             {{ form.asset_ip(class='form-control',  autocomplete="off") }}
+                                            <label id="asset_ip_message" class="text-danger" hidden="true">Invalid IP Address</label>    
+                                    </div>
+                                    <div class="form-group col-4">
+                                        <label for="asset_external_ip" class="placeholder">External IP</label>
+                                        {{ form.asset_external_ip(class='form-control',  autocomplete="off") }}
+                                        <label id="asset_ext_ip_message" class="text-danger" hidden="true">Invalid IP Address</label>
                                     </div>
                                 </div>
                                 <div class="form-group">

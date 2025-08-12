@@ -35,18 +35,22 @@ services:
     networks:
       - iris_backend
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - ./db_data:/var/lib/postgresql/data
 
   app:
     container_name: iriswebapp_app
+    build:
+      context: .
+      dockerfile: docker/webApp/Dockerfile
     command: ['nohup', './iris-entrypoint.sh', 'iriswebapp']
     volumes:
       - ./certificates/rootCA/irisRootCACert.pem:/etc/irisRootCACert.pem:ro
       - ./certificates/:/home/iris/certificates/:ro
       - ./certificates/ldap/:/iriswebapp/certificates/ldap/:ro
-      - iris-downloads:/home/iris/downloads
-      - user_templates:/home/iris/user_templates
-      - server_data:/home/iris/server_data
+      - ./iris-downloads:/home/iris/downloads
+      - ./user_templates:/home/iris/user_templates
+      - ./server_data:/home/iris/server_data
+      - ./source/app/:/iriswebapp/app/
     restart: always
     depends_on:
       - "rabbitmq"
@@ -74,9 +78,10 @@ services:
       - ./certificates/rootCA/irisRootCACert.pem:/etc/irisRootCACert.pem:ro
       - ./certificates/:/home/iris/certificates/:ro
       - ./certificates/ldap/:/iriswebapp/certificates/ldap/:ro
-      - iris-downloads:/home/iris/downloads
-      - user_templates:/home/iris/user_templates
-      - server_data:/home/iris/server_data
+      - ./iris-downloads:/home/iris/downloads
+      - ./user_templates:/home/iris/user_templates
+      - ./server_data:/home/iris/server_data
+
     depends_on:
       - "rabbitmq"
       - "db"
@@ -115,12 +120,6 @@ services:
     restart: always
     depends_on:
       - "app"
-
-volumes:
-  iris-downloads:
-  user_templates:
-  server_data:
-  db_data:
 
 networks:
   iris_backend:

@@ -177,6 +177,7 @@ class CaseAssets(db.Model):
     asset_description = Column(Text)
     asset_domain = Column(Text)
     asset_ip = Column(Text)
+    asset_external_ip = Column(Text)
     asset_info = Column(Text)
     asset_compromise_status_id = Column(Integer, nullable=True)
     asset_type_id = Column(ForeignKey('assets_type.asset_id'))

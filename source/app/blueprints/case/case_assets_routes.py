@@ -73,6 +73,7 @@ case_assets_blueprint = Blueprint('case_assets',
                                   __name__,
                                   template_folder='templates')
 
+CSV_HEADERS = "asset_name,asset_type_name,asset_description,asset_ip,asset_external_ip,asset_domain,asset_tags"
 
 @case_assets_blueprint.route('/case/assets', methods=['GET'])
 @ac_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
@@ -253,7 +254,7 @@ def case_upload_ioc(caseid):
         # get IOC list from request
         csv_lines = jsdata["CSVData"].splitlines() # unavoidable since the file is passed as a string
 
-        headers = "asset_name,asset_type_name,asset_description,asset_ip,asset_domain,asset_tags"
+        headers = CSV_HEADERS
 
         if csv_lines[0].lower() != headers:
             csv_lines.insert(0, headers)
@@ -382,6 +383,7 @@ def asset_view_modal(cur_id, caseid, url_redir):
     form.asset_description.data = asset.asset_description
     form.asset_info.data = asset.asset_info
     form.asset_ip.render_kw = {'value': asset.asset_ip}
+    form.asset_external_ip.render_kw = {'value': asset.asset_external_ip}
     form.asset_domain.render_kw = {'value': asset.asset_domain}
     form.asset_compromise_status_id.choices = get_compromise_status_list()
     form.asset_type_id.choices = get_assets_types()

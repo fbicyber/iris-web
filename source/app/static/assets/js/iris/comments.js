@@ -77,7 +77,7 @@ function save_comment_ext(element_id, element_type, do_close){
 function decrease_modal_comments_count(element_type, element_id) {
 
     let tid = '#object_comments_number';
-    if (element_type === 'timeline/events' || element_type === 'alerts') {
+    if (element_type === 'alerts') {
         tid = '#object_comments_number_' + element_id;
     }
 
@@ -94,7 +94,7 @@ function decrease_modal_comments_count(element_type, element_id) {
 
 function increase_modal_comments_count(element_type, element_id) {
     let tid = '#object_comments_number';
-    if (element_type === 'timeline/events' || element_type === 'alerts') {
+    if (element_type === 'alerts') {
         tid = '#object_comments_number_' + element_id;
     }
 

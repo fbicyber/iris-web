@@ -527,3 +527,32 @@ def get_filtered_cases(current_user_id,
         return None
 
     return filtered_cases
+
+
+def get_case_local_timezone(case_id):
+    """
+    Given case ID, check if case still exists
+    if so, return the local timezone
+    """
+    case = Cases.query.filter(Cases.case_id == case_id).first()
+
+    if not case:
+        return ""
+    else:
+        local_timezone = case.local_timezone
+        return local_timezone
+
+
+def set_case_local_timezone(case_id, local_timezone=""):
+    """
+    Given case ID, check if case still exists
+    if so, set the case's local timezone to param local_timezone
+    """
+    case = Cases.query.filter(Cases.case_id == case_id).first()
+
+    if not case:
+        return None
+    else:
+        case.local_timezone = local_timezone
+        db.session.commit()
+        return case

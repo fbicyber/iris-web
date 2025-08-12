@@ -28,6 +28,8 @@ from flask_wtf import FlaskForm
 from app.datamgmt.case.case_db import get_case
 from app.datamgmt.case.case_events_db import get_case_events_assets_graph
 from app.datamgmt.case.case_events_db import get_case_events_ioc_graph
+from app.datamgmt.case.case_assets_db import get_assets, get_assets_ioc_links
+from app.datamgmt.case.case_iocs_db import get_iocs
 from app.models.authorization import CaseAccessLevel
 from app.util import ac_api_case_requires
 from app.util import ac_case_requires
@@ -57,6 +59,11 @@ def case_graph_get_data(caseid):
     events = get_case_events_assets_graph(caseid)
     events.extend(get_case_events_ioc_graph(caseid))
 
+    # get all assets and iocs, as well as the links between them
+    all_assets = get_assets(caseid)
+    all_iocs = get_iocs(caseid)
+    asset_ioc_links = get_assets_ioc_links(caseid)
+
     nodes = []
     edges = []
     dates = {
@@ -75,6 +82,8 @@ def case_graph_get_data(caseid):
 
             if event.asset_ip:
                 title = "{} -{}".format(event.asset_ip, event.asset_description)
+            elif event.asset_external_ip:
+                title = "{} -{}".format(event.asset_external_ip, event.asset_description)
             else:
                 title = "{}".format(event.asset_description)
             label = event.asset_name
@@ -138,6 +147,56 @@ def case_graph_get_data(caseid):
                 'to': subset[1]['node_id'],
                 'title': subset[0]['node_title'],
                 'dashes': subset[0]['node_type'] == 'ioc' or subset[1]['node_type'] == 'ioc'
+            }
+            edges.append(edge)
+    
+    
+    # add nodes for assets not linked to any event
+    for asset in all_assets:
+        idx = f'a{asset.asset_id}'
+        if not any(node['id'] == idx for node in nodes):
+            img = asset.asset_icon_compromised if asset.asset_compromise_status_id == 1 else asset.asset_icon_not_compromised
+            title = "{} -{}".format(asset.asset_ip or asset.asset_external_ip or '', asset.asset_description)
+            label = asset.asset_name
+            new_node = {
+                'id': idx,
+                'label': label,
+                'image': '/static/assets/img/graph/' + img,
+                'shape': 'image',
+                'title': title,
+                'value': 1
+            }
+            if current_user.in_dark_mode:
+                new_node['font'] = "12px verdana white"
+            nodes.append(new_node)
+
+
+    # add nodes for IOCs not linked to any event
+    for ioc in all_iocs:
+        idx = f'b{ioc.ioc_id}'
+        if not any(node['id'] == idx for node in nodes):
+            new_node = {
+                'id': idx,
+                'label': ioc.ioc_value,
+                'image': '/static/assets/img/graph/virus-covid-solid.png',
+                'shape': 'image',
+                'title': ioc.ioc_value,
+                'value': 1
+            }
+            if current_user.in_dark_mode:
+                new_node['font'] = "12px verdana white"
+            nodes.append(new_node)
+    
+    # add edges between assets and IOCs that are not linked to any event
+    for link in asset_ioc_links:
+        asset_idx = f'a{link.asset_id}'
+        ioc_idx = f'b{link.ioc_id}'
+        if any(node['id'] == asset_idx for node in nodes) and any(node['id'] == ioc_idx for node in nodes):
+            edge = {
+                'from': asset_idx,
+                'to': ioc_idx,
+                'title': f"Link between Asset {asset_idx} and IOC {ioc_idx}",
+                'dashes': True 
             }
             edges.append(edge)
 

@@ -28,5 +28,10 @@ source/app/static/assets/dist/
 source/app/static/assets/img/graph/*
 !source/app/static/assets/img/graph/*.png
 run_nv_test.py
+*__pycache__*
+iris-downloads/
+server_data/
+user_templates/
+db_data/
 !certificates/web_certificates/iris_dev_*
 certificates/web_certificates/*.pem

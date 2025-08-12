@@ -13,9 +13,16 @@
         {{ form.hidden_tag() }}
         <nav class="navbar navbar-header navbar-expand-lg pt-2 pb-2 bg-case-gradient nav-sticky">
                 <div class="container-fluid">
-                    <div class="collapse" id="search-nav">
-                        <div id="tables_button"></div>
-                     </div>
+					<div class="row ml-1 my-2 w-100">
+                        <div class="col-md-5">
+                            <form class="form">
+                                <input type="text" id="datatable_search_bar" class="form-control form-control-custom-search" placeholder="Search">
+                            </form>
+                        </div>
+                        <div class="col-md-7">
+                            <div id="tables_button"></div>
+                        </div>
+                    </div>
 					<ul class="navbar-nav topbar-nav ml-md-auto align-items-center page-navigation page-navigation-style-2 page-navigation-secondary">
                         <li class="nav-item ml-2">
                             <span class="text-white text-sm mr-2" id="last_resfresh">Loading</span>
@@ -61,7 +68,8 @@
                                       <th>Name</th>
                                       <th>Type</th>
                                       <th>Description</th>
-                                      <th>IP</th>
+                                      <th>Internal IP</th>
+                                      <th>External IP</th>
                                       <th>Compromised</th>
                                       <th>IOC</th>
                                       <th>Tags</th>
@@ -73,7 +81,8 @@
                                       <th>Name</th>
                                       <th>Type</th>
                                       <th>Description</th>
-                                      <th>IP</th>
+                                      <th>Internal IP</th>
+                                      <th>External IP</th>
                                       <th>Compromised</th>
                                       <th>IOC</th>
                                       <th>Tags</th>
@@ -113,11 +122,10 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label for="ioc_format" class="placeholder">Expected CSV File format</label>
-                    <textarea class="form-control col-md-12 col-sm-12 sizable-textarea" rows="2" disabled>asset_name,asset_type_name,asset_description,asset_ip,asset_domain,asset_tags (separated with &quot;|&quot;)</textarea>
-                </div>
+                    <textarea class="form-control col-md-12 col-sm-12 sizable-textarea" rows="2" disabled>asset_name,asset_type_name,asset_description,asset_ip,asset_external_ip,asset_domain,asset_tags (separated with &quot;|&quot;)</textarea>                </div>
                 <div class="form-group">
                     <label class="placeholder">CSV File format example</label>
-                    <textarea class="form-control col-md-12 col-sm-12 sizable-textarea" rows="3" disabled>asset_name,asset_type_name,asset_description,asset_ip,asset_domain,asset_tags
+                    <textarea class="form-control col-md-12 col-sm-12 sizable-textarea" rows="3" disabled>asset_name,asset_type_name,asset_description,asset_ip,asset_external_ip,asset_domain,asset_tags
     "My computer","Mac - Computer","Computer of Mme Michu","192.168.15.5","iris.local","Compta|Mac"
     "XCAS","Windows - Server","Xcas server","192.168.15.48","iris.local",""</textarea>
                 </div>

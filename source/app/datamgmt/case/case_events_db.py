@@ -50,6 +50,7 @@ def get_case_events_assets_graph(caseid):
         CaseAssets.asset_compromise_status_id,
         CaseAssets.asset_description,
         CaseAssets.asset_ip,
+        CaseAssets.asset_external_ip,
         CasesEvent.event_date,
         CasesEvent.event_tags
     ).filter(and_(
@@ -91,10 +92,17 @@ def get_case_events_ioc_graph(caseid):
 
 
 def get_events_categories():
-    return EventCategory.query.with_entities(
+    event_categories = EventCategory.query.with_entities(
         EventCategory.id,
         EventCategory.name
     ).all()
+    
+    # pre: [(1, 'Unspecified'), (2, 'Legitimate'), ...]
+    # post: [(12, 'Collection'), (13, 'Command and Control'), ...]
+    # sort the list based on the category names, alphabetical order
+    event_categories = sorted(event_categories, key=lambda x:x[1]) 
+
+    return event_categories
 
 
 def get_default_cat():

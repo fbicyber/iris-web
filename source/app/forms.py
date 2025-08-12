@@ -28,6 +28,7 @@ from wtforms.fields.simple import SubmitField
 from wtforms.validators import DataRequired
 from wtforms.validators import Email
 from wtforms.validators import InputRequired
+from wtforms.validators import IPAddress
 
 
 class LoginForm(FlaskForm):
@@ -167,7 +168,8 @@ class AssetBasicForm(FlaskForm):
     asset_name = StringField(u'Name', validators=[DataRequired()])
     asset_description = TextAreaField(u'Description')
     asset_domain = StringField(u'Domain')
-    asset_ip = StringField(u'Domain')
+    asset_ip = StringField(u'Domain', validators=[IPAddress()])
+    asset_external_ip = StringField(u'Domain', validators=[IPAddress()])
     asset_info = TextAreaField(u'Asset Info')
     asset_compromise_status_id = SelectField(u'Compromise Status')
     asset_type_id = SelectField(u'Asset Type', validators=[DataRequired()])
@@ -177,7 +179,7 @@ class AssetBasicForm(FlaskForm):
 
 class CaseEventForm(FlaskForm):
     event_title = StringField(u'Event Title', validators=[DataRequired()])
-    event_source = StringField(u'Event Source')
+    event_source = StringField(u'Artifact Path')
     event_content = TextAreaField(u'Event Description')
     event_raw = TextAreaField(u'Event Raw data')
     event_assets = SelectField(u'Event Asset')
@@ -231,3 +233,6 @@ class AddModuleForm(FlaskForm):
 
 class UpdateModuleParameterForm(FlaskForm):
     module_name = StringField(u'Module name', validators=[DataRequired()])
+
+class TimelineForm(FlaskForm):
+    timezone = SelectField(u'Timezone')

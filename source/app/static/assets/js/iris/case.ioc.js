@@ -407,7 +407,8 @@ $(document).ready(function(){
                   let tags = "";
                   let de = data.split(',');
                   for (let tag in de) {
-                      tags += get_tag_from_data(de[tag], 'badge badge-light ml-2');
+                    individual_tag = ellipsis_field_raw(de[tag], 20);  
+                    tags += get_tag_from_data(individual_tag, 'badge badge-light ml-2');
                   }
                   return tags;
               }
@@ -433,12 +434,12 @@ $(document).ready(function(){
             "data": "tlp_name",
             "render": function(data, type, row, meta) {
                if (type === 'display') {
-                    if (data) {
-                        data = sanitizeHTML(data);
-                        data = '<span class="badge badge-' + row['tlp_bscolor'] + ' ml-2">tlp:' + data + '</span>';
-                    } else {
-                        return `<span class="badge badge-light ml-2">unspecified</span>`
-                    }
+                if (data) {
+                    data = sanitizeHTML(data);
+                    data = '<span class="badge badge-' + row['tlp_bscolor'] + ' ml-2">tlp:' + data + '</span>';
+                } else {
+                    return `<span class="badge badge-light ml-2">unspecified</span>`
+                }
               }
               return data;
             }
@@ -459,6 +460,7 @@ $(document).ready(function(){
         orderCellsTop: true,
         initComplete: function () {
             tableFiltering(this.api(), 'ioc_table');
+            $('div.dataTables_filter', this.api().table(). container()).attr('id', 'datatable_search_bar');
         },
         select: true
     });
@@ -468,6 +470,18 @@ $(document).ready(function(){
             hide_table_search_input( columns );
     });
 
+    // apply search 
+    $('#datatable_search_bar').keyup(function(){
+        Table.search($(this).val()).draw() ;
+    })
+    
+    // prevent redirect to case #1 by default 
+    $('#datatable_search_bar').on("keypress", function(e){
+        if (e.which == 13) {
+            e.preventDefault();
+        }
+    })
+    
     var buttons = new $.fn.dataTable.Buttons(Table, {
      buttons: [
         { "extend": 'csvHtml5', "text":'<i class="fas fa-cloud-download-alt"></i>',"className": 'btn btn-link text-white'

@@ -68,6 +68,7 @@ def get_assets(caseid):
         CaseAssets.asset_domain,
         CaseAssets.asset_compromise_status_id,
         CaseAssets.asset_ip,
+        CaseAssets.asset_external_ip,
         CaseAssets.asset_type_id,
         AnalysisStatus.name.label('analysis_status'),
         CaseAssets.analysis_status_id,
@@ -82,14 +83,12 @@ def get_assets(caseid):
 
     return assets
 
-
 def get_raw_assets(caseid):
     assets = CaseAssets.query.filter(
         CaseAssets.case_id == caseid
     ).all()
 
     return assets
-
 
 def get_assets_name(caseid):
     assets_names = CaseAssets.query.with_entities(
@@ -110,12 +109,13 @@ def get_asset(asset_id, caseid):
     return asset
 
 
-def update_asset(asset_name, asset_description, asset_ip, asset_info, asset_domain,
+def update_asset(asset_name, asset_description, asset_ip, asset_external_ip, asset_info, asset_domain,
                  asset_compromise_status_id, asset_type, asset_id, caseid, analysis_status, asset_tags):
     asset = get_asset(asset_id, caseid)
     asset.asset_name = asset_name
     asset.asset_description = asset_description
     asset.asset_ip = asset_ip
+    asset.asset_external_ip = asset_external_ip
     asset.asset_info = asset_info
     asset.asset_domain = asset_domain
     asset.asset_compromise_status_id = asset_compromise_status_id

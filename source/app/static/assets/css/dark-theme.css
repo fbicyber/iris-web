@@ -266,8 +266,13 @@ body .form-control,
 body .form-group-default,
 body .select2-container--bootstrap .select2-selection {
     background-color: #1a2035 !important;
-    color: #fff !important;;
+    color: #fff !important;
     border-color: #2f374b;
+    
+    &.form-control-custom-search {
+      background-color: #2f374bc6 !important;
+      color: #fff !important;
+    }
 }
 
 body .bootstrap-tagsinput {

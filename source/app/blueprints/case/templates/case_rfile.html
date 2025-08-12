@@ -15,9 +15,16 @@
         {{ form.hidden_tag() }}
             <nav class="navbar navbar-header navbar-expand-lg pt-2 pb-2 bg-case-gradient nav-sticky">
                 <div class="container-fluid">
-                    <div class="collapse" id="search-nav">
-                        <div id="tables_button"></div>
-                     </div>
+                    <div class="row ml-1 my-2 w-100">
+                        <div class="col-md-5">
+                            <form class="form">
+                                <input type="text" id="datatable_search_bar" class="form-control form-control-custom-search" placeholder="Search">
+                            </form>
+                        </div>
+                        <div class="col-md-7">
+                            <div id="tables_button"></div>
+                        </div>
+                    </div>
 					<ul class="navbar-nav topbar-nav ml-md-auto align-items-center page-navigation page-navigation-style-2 page-navigation-secondary">
                         <li class="nav-item ml-2">
                             <span class="text-white text-sm mr-2" id="last_resfresh">Loading</span>

@@ -1185,6 +1185,7 @@ function renderAlert(alert, expanded=false, modulesOptionsAlertReq,
                                        <td>${asset.asset_type ? filterXSS(asset.asset_type.asset_name) : '-'}</td>
                                        <td>${asset.asset_domain ? filterXSS(asset.asset_domain) : '-'}</td>
                                        <td>${asset.asset_ip ? filterXSS(asset.asset_ip) : '-'}</td>
+                                       <td>${asset.asset_external_ip ? filterXSS(asset.asset_external_ip) : '-'}</td>
                                        <td>${asset.asset_tags ? asset.asset_tags.split(',').map((tag) => get_tag_from_data(tag, 'badge badge-pill badge-light ml-1')).join('') : ''}</td>
                                        <td>${asset.asset_enrichment ? `<button type="button" class="btn btn-sm btn-outline-dark" data-toggle="modal" data-target="#enrichmentModal" onclick="showEnrichment(${JSON.stringify(asset.asset_enrichment).replace(/"/g, '&quot;')})">
                                           View Enrichment

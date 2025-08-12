@@ -17,6 +17,8 @@
 #  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 import os
 from datetime import datetime
+import pytz
+from dateutil import tz
 from jinja2.sandbox import SandboxedEnvironment
 
 from app import app
@@ -110,6 +112,73 @@ def parse_bf_date_format(input_str):
                 pass
 
     return None
+
+
+def get_all_timezones():
+    """
+    Get all valid timezones and their offsets
+
+    Return a dictionary and list of tuple: timezone_info_dict, timezone_info_for_form
+        timezone_info_dict:
+        0 {'timezone': 'UTC', 'offset': '+00:00'}
+        1 {'timezone': 'Etc/GMT+12', 'offset': '-12:00'}
+        ...
+
+        timezone_info_for_form:
+        (0, 'UTC, UTC+00:00')
+        (1, 'Etc/GMT+12, UTC-12:00')
+        ...
+    """
+    timezone_info = list()
+    timezone_info_for_form = list()
+    timezone_info_dict = {}
+    timezone_id = 0
+
+    now = datetime.utcnow()  # Use UTC time for consistent offset calculation
+
+    # go through all timezones 
+    for timezone_str in pytz.all_timezones:
+        tz = pytz.timezone(timezone_str)
+        localized_now = now.astimezone(tz)  # convert UTC time to the specific timezone
+        offset = localized_now.utcoffset()
+
+        # format offset string, i.e +/- 00:00
+        offset_hours = int(offset.total_seconds() // 3600)
+        offset_minutes = int((offset.total_seconds() % 3600) // 60)
+        offset_str = f"{offset_hours:+03}:{offset_minutes:02}"
+
+        # for +00:00, ONLY keep UTC, ignore the rest
+        if offset_str == "+00:00" and timezone_str != "UTC":
+            continue
+
+        # adding individual timezone info
+        timezone_info.append({
+            "timezone": timezone_str,
+            "offset": offset_str,
+            "offset_seconds": offset.total_seconds()  # Add numeric offset for sorting
+        })
+
+    # sort by ascending order based on offset seconds
+    timezone_info.sort(key=lambda x: x["offset_seconds"])
+
+    # keep utc at the top
+    utc_entry = next((tz for tz in timezone_info if tz["timezone"] == "UTC"), None)
+    if utc_entry:
+        timezone_info.remove(utc_entry)
+        timezone_info.insert(0, utc_entry)
+
+    # format output into dict and list of tuples, since case_timeline_routes depends on this format
+    for tz in timezone_info:
+        timezone_info_dict[timezone_id] = {
+            "timezone": tz["timezone"],
+            "offset": tz["offset"]
+        }
+
+        # for dropdown form
+        timezone_info_for_form.append((timezone_id, f"{tz['timezone']}, UTC{tz['offset']}"))
+        timezone_id += 1
+
+    return timezone_info_dict, timezone_info_for_form
 
 
 class IrisJinjaEnv(SandboxedEnvironment):

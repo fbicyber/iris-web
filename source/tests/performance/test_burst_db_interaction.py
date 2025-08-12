@@ -111,6 +111,7 @@ class TestBurstDBInteraction(TestCase):
                     asset_name=f"asset_{str(ii)}",
                     asset_description=f"My asset {str(i)}",
                     asset_ip='',
+                    asset_external_ip='',
                     asset_info='',
                     asset_compromised=(ii % 2 == 0),
                     asset_type=random.randrange(1, 19),

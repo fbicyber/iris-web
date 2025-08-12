@@ -1373,12 +1373,12 @@ def create_safe_ioctypes():
     create_safe_limited(db.session, IocType, ["type_name", "type_description"], type_name="github-username",
                         type_description="A github user name",
                         type_taxonomy="")
-    create_safe_limited(db.session, IocType, ["type_name", "type_description"], type_name="hassh-md5",
-                        type_description="hassh is a network fingerprinting standard which can be used to identify specific Client SSH implementations. The fingerprints can be easily stored, searched and shared in the form of an MD5 fingerprint.",
+    create_safe_limited(db.session, IocType, ["type_name", "type_description"], type_name="-md5",
+                        type_description="hash is a network fingerprinting standard which can be used to identify specific Client SSH implementations. The fingerprints can be easily stored, searched and shared in the form of an MD5 fingerprint.",
                         type_taxonomy="",
                         type_validation_regex="[a-f0-9]{32}", type_validation_expect="32 hexadecimal characters")
-    create_safe_limited(db.session, IocType, ["type_name", "type_description"], type_name="hasshserver-md5",
-                        type_description="hasshServer is a network fingerprinting standard which can be used to identify specific Server SSH implementations. The fingerprints can be easily stored, searched and shared in the form of an MD5 fingerprint.",
+    create_safe_limited(db.session, IocType, ["type_name", "type_description"], type_name="hashserver-md5",
+                        type_description="hashServer is a network fingerprinting standard which can be used to identify specific Server SSH implementations. The fingerprints can be easily stored, searched and shared in the form of an MD5 fingerprint.",
                         type_taxonomy="",
                         type_validation_regex="[a-f0-9]{32}", type_validation_expect="32 hexadecimal characters")
     create_safe_limited(db.session, IocType, ["type_name", "type_description"], type_name="hex",
