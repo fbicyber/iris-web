@@ -23,8 +23,9 @@ from ldap3 import Connection
 from ldap3 import Server
 from ldap3 import Tls
 from ldap3.utils import conv
+from ldap3.utils.dn import escape_rdn
 
-from app import app
+from flask import current_app as app
 from app.datamgmt.manage.manage_users_db import get_active_user_by_login
 from app.datamgmt.manage.manage_users_db import create_user
 from app.datamgmt.manage.manage_users_db import add_user_to_group
@@ -82,7 +83,11 @@ def ldap_authenticate(ldap_user_name, ldap_user_pwd):
     Authenticate to the LDAP server
     """
     if app.config.get('LDAP_AUTHENTICATION_TYPE').lower() != 'ntlm':
-        ldap_user_name = conv.escape_filter_chars(ldap_user_name)
+        # This value becomes part of a bind DN, not a search filter: escape_filter_chars
+        # only neutralizes RFC 4515 filter metacharacters and leaves ',', '=' and '+'
+        # untouched, letting a username inject extra RDN components into the DN.
+        # escape_rdn is the correct escaping for this context.
+        ldap_user_name = escape_rdn(ldap_user_name)
         ldap_user = f"{app.config.get('LDAP_USER_PREFIX')}{ldap_user_name.strip()}{ ','+app.config.get('LDAP_USER_SUFFIX') if app.config.get('LDAP_USER_SUFFIX') else ''}"
     else:
         ldap_user = f"{ldap_user_name.strip()}"

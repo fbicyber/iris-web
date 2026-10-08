@@ -30,6 +30,7 @@
                             <div class="row">
                                 <div id='timeline_filtering' style="display: none;"></div>
                                 <form class="form col-md-6">
+                                    <label for="datatable_search_bar" class="sr-only">Search timeline events</label>
                                     <input type="text" id="datatable_search_bar" class="form-control form-control-custom-search" placeholder="Search">
                                 </form>
                                 <div class="col-md-6">
@@ -41,23 +42,23 @@
                                 <button class="btn btn-sm btn-light ml-1 pt-2" style="display: none;" onclick="reset_filters();">
                                     Reset
                                 </button>
-                                <i class="ml-1 mt-1 fa-regular text-white fa-circle-question" title="Filter help" style="cursor:pointer; display: none;" onclick="show_timeline_filter_help();"></i>
+                                <i class="ml-1 mt-1 fa-regular text-white fa-circle-question" title="Filter help" role="button" tabindex="0" aria-label="Show timeline filter help" style="cursor:pointer; display: none;" onclick="show_timeline_filter_help();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); show_timeline_filter_help(); }"></i>
                             </div>
                         </li>
                     </ul>
                     <ul class="navbar-nav topbar-nav col-6 d-flex justify-content-end align-items-center page-navigation page-navigation-style-2 page-navigation-secondary">
                         <!-- <li class="nav-item ml-2">
-                            <span class="text-white text-sm mr-2" id="last_resfresh">Loading</span>
+                            <span class="text-white text-sm mr-2" id="last_resfresh_example">Loading</span>
                         </li> -->
                         <li class="nav-item hidden-caret d-flex align-items-center">
                             <label for="timezone" class="form-label mb-0 mr-2 text-white">Local Timezone:</label>
                             {{ form.timezone(class="selectpicker", id="timezone") }}
                         </li>
                         <li class="nav-item ml-2"></li>
-                            <span class="text-white text-sm mr-2" id="last_resfresh">Loading</span>
+                            <span class="text-white text-sm mr-2" id="last_resfresh" role="status" aria-live="polite">Loading</span>
                         </li>
                         <li class="nav-item hidden-caret">
-                            <button class="btn btn-primary btn-sm" onclick="get_or_filter_tm();">
+                            <button class="btn btn-primary btn-sm" onclick="get_or_filter_tm(null, true);">
                                 <span class="menu-title">Refresh</span>
                             </button>
                         </li>
@@ -73,10 +74,10 @@
                         </li>
                         <li class="nav-item">
                             <div class="dropdown">
-                              <button class="btn btn-sm btn-border btn-black" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                              <button class="btn btn-sm btn-border btn-black" id="timeline_actions_dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Open timeline actions menu">
                                   <span class="menu-title"><i class="fas fa-ellipsis-v"></i></span>
                               </button>
-                              <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                              <div class="dropdown-menu" aria-labelledby="timeline_actions_dropdown">
                                   <a class="dropdown-item" href="javascript:void(0);" onclick="toggle_tree_view();"> Toggle tree view</a>
                                   <a class="dropdown-item" href="javascript:void(0);" onclick="toggle_compact_view();"> Toggle compact view</a>
                                   <div class="dropdown-divider"></div>
@@ -99,11 +100,12 @@
 
         <div class="page-inner">
             <div class="row">
-                <div class="loader1 text-center ml-mr-auto" id="loading_msg">Loading...</div>
+                <div class="loader1 text-center ml-mr-auto" id="loading_msg" role="status" aria-live="polite">Loading...</div>
                 <div class="col-md-12" id="card_main_load" style="display:none;">
+                    <div id="paginator_top"></div>
                     <div id="paginator"></div>
                     <!-- <ul class="timeline" id="timeline_list">
-        
+
                     </ul> -->
                     <section class="mx-4">
                         <div class="mx-3">
@@ -113,9 +115,11 @@
                                     id="timeline_tabular">
                                     <thead>
                                         <tr>
-                                            <th id="local_timezone_header">Local, UTC{{ timezone.offset }}</th>
-                                            <th>UTC</th>
+                                            <th id="local_timezone_header" style="width: 140px;">Local, UTC{{ timezone.offset }}</th>
+                                            <th style="width: 140px;">UTC</th>
+                                            <th style="width: 140px;">Create Date</th>
                                             <th>Event Title</th>
+                                            <th>Add to Summary</th>
                                             <th>Host</th>
                                             <th>Artifact Path</th>
                                             <th>Internal IP</th>
@@ -127,38 +131,44 @@
                                     </thead>
                                 </table>
                             </div>
-                        </div>    
+                        </div>
                     </section>   
                 </div>
             </div>
             <div id="side_timeline">
-                <button class="btn btn-round bg-transparent btn_over_page_a btn_over_page_delete btn-conditional" title="Delete selected events" onclick="events_bulk_delete();"><i class="fas fa-trash text-danger"></i></button>
+                <button class="btn btn-round bg-transparent btn_over_page_a btn_over_page_delete btn-conditional" title="Delete selected events" aria-label="Delete selected events" onclick="events_bulk_delete();"><i class="fas fa-trash text-danger"></i></button>
 
             <div class="btn_over_page_b">
-                <button class="btn btn-round btn-conditional-2 colorinput-color bg-white" title="color1" onclick="events_set_attribute('event_color', '#ffe')"></button>
-                <button class="btn btn-round btn-conditional-2 colorinput-color bg-primary" title="color2" onclick="events_set_attribute('event_color', '#1572E899')"></button>
-                <button class="btn btn-round btn-conditional-2 colorinput-color bg-secondary" title="color3" onclick="events_set_attribute('event_color', '#6861CE99')"></button>
-                <button class="btn btn-round btn-conditional-2 colorinput-color bg-info" title="color4" onclick="events_set_attribute('event_color', '#48ABF799')"></button>
-                <button class="btn btn-round btn-conditional-2 colorinput-color bg-success" title="color5" onclick="events_set_attribute('event_color', '#31CE3699')"></button>
-                <button class="btn btn-round btn-conditional-2 colorinput-color bg-danger" title="color5" onclick="events_set_attribute('event_color', '#F2596199')"></button>
-                <button class="btn btn-round btn-conditional-2 colorinput-color bg-warning" title="color5" onclick="events_set_attribute('event_color', '#FFAD4699')"></button>
-                <button class="btn btn-round btn-light btn-conditional" title="Change color" onclick="toggle_colors()"><i class="fas fa-tint"></i></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color bg-white border border-dark" title="No color" aria-label="Set selected events to no color" onclick="events_set_attribute('event_color', null)">
+                    <i class="px-1 fas fa-times text-danger fa-2x"></i>
+                </button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color bg-secondary" title="Purple" aria-label="Set selected events to purple" onclick="events_set_attribute('event_color', '#6861CE99')"></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color bg-info" title="Blue" aria-label="Set selected events to blue" onclick="events_set_attribute('event_color', '#48ABF799')"></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color bg-success" title="Green" aria-label="Set selected events to green" onclick="events_set_attribute('event_color', '#31CE3699')"></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color bg-danger" title="Red" aria-label="Set selected events to red" onclick="events_set_attribute('event_color', '#F2596199')"></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color bg-warning" title="Orange" aria-label="Set selected events to orange" onclick="events_set_attribute('event_color', '#FFAD4699')"></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color" style="background-color: #94A3B8;" title="Slate" aria-label="Set selected events to slate" onclick="events_set_attribute('event_color', '#94A3B8')"></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color" style="background-color: #B5BCFF;" title="Lavender" aria-label="Set selected events to lavender" onclick="events_set_attribute('event_color', '#B5BCFF')"></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color" style="background-color: #14B8A6;" title="Teal" aria-label="Set selected events to teal" onclick="events_set_attribute('event_color', '#14B8A6')"></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color" style="background-color: #FACC15;" title="Yellow" aria-label="Set selected events to yellow" onclick="events_set_attribute('event_color', '#FACC15')"></button>
+                <button class="btn btn-round btn-conditional-2 colorinput-color" style="background-color: #912136;" title="Maroon" aria-label="Set selected events to maroon" onclick="events_set_attribute('event_color', '#912136')"></button>
+                <button class="btn btn-round btn-light btn-conditional" title="Change color" aria-label="Change selected event color" onclick="toggle_colors()"><i class="fas fa-tint"></i></button>
             </div>    
             <div class="btn_over_page_i" style="display: flex; flex-direction: column;">
-                <button class="btn btn-round bg-transparent  btn-conditional" title="Toggle Summary" onclick="events_set_attribute('event_in_summary')"><i class="fas fa-newspaper"></i></button>
-                <button class="btn btn-round bg-transparent  btn-conditional" title="Toggle Graph" onclick="events_set_attribute('event_in_graph')"><i class="fas fa-share-alt"></i></button>
-                <button class="btn btn-round bg-transparent " title="Select events" onclick="toggle_selector();" id="selector-btn"><i class="fas fa-check-double"></i></button>
-                <button class="btn btn-round bg-transparent " title="Add new event" onclick="add_event();"><i class="fas fa-plus-circle"></i></button>
-                <button class="btn btn-round bg-transparent " title="Toggle child events" onclick="toggle_child_events();"><i class="fas fa-folder-tree"></i></button>
-                <button class="btn btn-round bg-transparent  " title="Refresh" onclick="get_or_filter_tm();"><i class="fas fa-redo-alt"></i></button>
-                <button class="btn btn-round bg-transparent " title="Go at the top" onclick="to_page_up();"><i class="fas fa-arrow-up"></i></button>
-                <button class="btn btn-round bg-transparent" title="Go at the bottom" onclick="to_page_down();"><i class="fas fa-arrow-down"></i></button>
+                <button class="btn btn-round bg-transparent  btn-conditional" title="Toggle Summary" aria-label="Toggle selected events in summary" onclick="events_set_attribute('event_in_summary')"><i class="fas fa-newspaper"></i></button>
+                <button class="btn btn-round bg-transparent  btn-conditional" title="Toggle Graph" aria-label="Toggle selected events in graph" onclick="events_set_attribute('event_in_graph')"><i class="fas fa-share-alt"></i></button>
+                <button class="btn btn-round bg-transparent " title="Select events" aria-label="Select events" onclick="toggle_selector();" id="selector-btn"><i class="fas fa-check-double"></i></button>
+                <button class="btn btn-round bg-transparent " title="Add new event" aria-label="Add new event" onclick="add_event();"><i class="fas fa-plus-circle"></i></button>
+                <button class="btn btn-round bg-transparent " title="Toggle child events" aria-label="Toggle child events" onclick="toggle_child_events();"><i class="fas fa-folder-tree"></i></button>
+                <button class="btn btn-round bg-transparent  " title="Refresh" aria-label="Refresh timeline" onclick="get_or_filter_tm();"><i class="fas fa-redo-alt"></i></button>
+                <button class="btn btn-round bg-transparent " title="Go at the top" aria-label="Go to top" onclick="to_page_up();"><i class="fas fa-arrow-up"></i></button>
+                <button class="btn btn-round bg-transparent" title="Go at the bottom" aria-label="Go to bottom" onclick="to_page_down();"><i class="fas fa-arrow-down"></i></button>
             </div>
         
         </div>
 
 
-        <div class="modal shadow-lg" tabindex="-1" id="modal_add_event" data-backdrop="static">
+        <div class="modal shadow-lg" tabindex="-1" role="dialog" aria-label="Add or edit event" id="modal_add_event" data-backdrop="static">
             <div class="modal-xl modal-dialog" role="document">
                 <div class="modal-content" id="modal_add_event_content">
 
@@ -171,13 +181,13 @@
     </div>
 
     <!-- BEGIN RS_CODE -->
-    <div class="modal " tabindex="-1" role="dialog" id="modal_upload_excel_events" data-backdrop="true">
+    <div class="modal " tabindex="-1" role="dialog" aria-labelledby="modal_upload_excel_events_title" id="modal_upload_excel_events" data-backdrop="true">
       <div class="modal-lg modal-dialog" role="document">
         <form method="post" action="" id="form_upload_csv_events">
 
           <div class="modal-content">
             <div class="modal-header">
-              <h5>Upload events list (Excel format)</h5>
+              <h5 id="modal_upload_excel_events_title">Upload events list (Excel format)</h5>
               <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
                   aria-hidden="true">&times;</span></button>
             </div>
@@ -186,24 +196,24 @@
                 <div class="form-group">
                     <label for="csv_format" class="placeholder">Expected Events Excel File format</label>
                     <textarea id="csv_format" class="form-control col-md-12 col-sm-12 sizable-textarea" rows="2"
-                        disabled>event_id,event_date,event_tz,event_title,event_category,event_content,event_raw,event_source,event_assets (separated with &quot;;&quot;),event_iocs (separated with &quot;;&quot;),event_tags (separated with &quot;|&quot;)</textarea>                    
+                        disabled>event_id,event_date,event_tz,event_end_date,event_end_tz,event_title,event_category,event_content,event_raw,event_source,event_assets (separated with &quot;;&quot;),event_iocs (separated with &quot;;&quot;),event_tags (separated with &quot;|&quot;)</textarea>                    
                 </div>
                 <div class="form-group">
-                    <label class="placeholder">Events Excel File format example</label>
-                    <textarea class="form-control col-md-12 col-sm-12 sizable-textarea" rows="3" disabled>
-                        event_id,event_date,event_tz,event_title,event_category,event_content,event_raw,event_source,event_assets,event_iocs,event_tags
-                        "2023-03-26T03:00:30.000","+00:00","An event","Unspecified","Event
+                    <label for="events_excel_format_example" class="placeholder">Events Excel File format example</label>
+                    <textarea id="events_excel_format_example" class="form-control col-md-12 col-sm-12 sizable-textarea" rows="3" disabled>
+                        event_id,event_date,event_tz,event_end_date,event_end_tz,event_title,event_category,event_content,event_raw,event_source,event_assets,event_iocs,event_tags
+                        "2023-03-26T03:00:30.000","+00:00","2023-03-26T03:10:30.000","+00:00","An event","Unspecified","Event
                         description","raw","source","","","defender|malicious"
-                        "2023-03-23T12:00:35.000","+00:00","An event","Legitimate","Event description","raw","source","","","admin_action"
+                        "2023-03-23T12:00:35.000","+00:00","","","An event","Legitimate","Event description","raw","source","","","admin_action"
                     </textarea>
                 </div>
                 <div class="form-group">
-                  <label class="placeholder">Choose Excel file to import : </label>
+                  <label for="input_upload_excel_events" class="placeholder">Choose Excel file to import : </label>
                    <input id="input_upload_excel_events" type="file"
                         accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
                 </div>
             </div>
-            <div class='invalid-feedback' id='ioc-invalid-msg'></div>
+            <div class='invalid-feedback' id='ioc-invalid-msg' role="alert" aria-live="assertive"></div>
             <div class="modal-footer">
                     <button type="button" class="btn btn-outline-dark mr-auto" onclick="generate_events_sample_excel();">Download sample Excel</button>
                     <button type="button" class="btn btn-outline-success" onclick="upload_excel_events();">Upload</button>
@@ -222,8 +232,8 @@
 {% include 'includes/footer_case.html' %}
 <script src="/static/assets/js/iris/case.timeline.js"></script>
 <script src="/static/assets/js/core/socket.io.js"></script>
+<script src="/static/assets/js/iris/socket.manager.js"></script>
 <script src="/static/assets/js/timeline.js"></script>
-
 
 
 {% if timezone %}

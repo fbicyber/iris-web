@@ -21,7 +21,7 @@ from datetime import datetime
 
 from flask import request
 
-from app import db
+from app.extensions import db
 from app.datamgmt.case.case_comments import get_case_comment
 from app.iris_engine.module_handler.module_handler import call_modules_hook
 from app.iris_engine.utils.tracker import track_activity

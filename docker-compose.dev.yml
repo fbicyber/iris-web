@@ -17,10 +17,28 @@
 
 services:
 
+  redis:
+    extends:
+      file: docker-compose.base.yml
+      service: redis
+
   rabbitmq:
     extends:
       file: docker-compose.base.yml
       service: rabbitmq
+
+  fs_perms:
+    extends:
+      file: docker-compose.base.yml
+      service: fs_perms
+  
+  fs:
+    extends:
+      file: docker-compose.base.yml
+      service: fs
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001" # do we need this?
 
   db:
     extends:
@@ -31,6 +49,7 @@ services:
     image: iriswebapp_db:v2.4.20
     ports:
       - "127.0.0.1:5432:5432"
+    command: ["postgres", "-c", "log_statement=all"]
 
   app:
     extends:

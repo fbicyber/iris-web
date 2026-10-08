@@ -52,8 +52,8 @@
         <hr/>
         <div class="form-group mt-3">
              <label>Configuration (click on a setting to edit)</label>
-            <button type="button" class="btn btn-sm btn-outline-dark float-right" onclick="export_mod_config('{{ data.id }}');">Export configuration</button>
-            <button type="button" class="btn btn-sm btn-outline-dark float-right mr-2" data-toggle="modal" data-target="#modal_input_config">Import configuration</button>
+            <button type="button" class="btn btn-sm btn-outline-dark float-right" onclick="export_mod_config('{{ data.id }}');" aria-label="Export module configuration">Export configuration</button>
+            <button type="button" class="btn btn-sm btn-outline-dark float-right mr-2" data-toggle="modal" data-target="#modal_input_config" aria-label="Import module configuration">Import configuration</button>
         </div>
         <div class="form-group mt-3">
 
@@ -87,13 +87,13 @@
     </div>
 </div>
 <div class="modal-footer">
-    <button type="button" class="btn btn-outline-danger mr-auto" onclick="remove_module('{{ data.id }}');">Remove module</button>
+    <button type="button" class="btn btn-outline-danger mr-auto" onclick="remove_module('{{ data.id }}');" aria-label="Remove module">Remove module</button>
     {% if is_configured and not data.is_active %}
-    <button type="button" class="btn btn-outline-success" onclick="enable_module('{{ data.id }}');">Enable module</button>
+    <button type="button" class="btn btn-outline-success" onclick="enable_module('{{ data.id }}');" aria-label="Enable module">Enable module</button>
     {% elif is_configured and data.is_active %}
-    <button type="button" class="btn btn-outline-warning" onclick="disable_module('{{ data.id }}');">Disable module</button>
+    <button type="button" class="btn btn-outline-warning" onclick="disable_module('{{ data.id }}');" aria-label="Disable module">Disable module</button>
     {% endif %}
-    <button type="button" class="btn btn-default" data-dismiss="modal">Dismiss</button>
+    <button type="button" class="btn btn-default" data-dismiss="modal" aria-label="Dismiss">Dismiss</button>
 </div>
 
 <div class="modal bg-shadow-gradient" tabindex="-1" role="dialog" id="modal_input_config" data-backdrop="true">
@@ -110,7 +110,7 @@
                     <p>Select a configuration file to upload. Existing configuration for this module will be overwritten.</p>
                     <label class="placeholder">Configuration file : </label>
                     <input id="input_configuration_file" type="file" accept="text/json">
-                    <button type="button" class="btn  btn-outline-success float-right mr-2" onclick="import_mod_config('{{ data.id }}');">Import</button>
+                    <button type="button" class="btn  btn-outline-success float-right mr-2" onclick="import_mod_config('{{ data.id }}');" aria-label="Import configuration file">Import</button>
                 </div>
             </div>
         </div><!-- /.modal-content -->

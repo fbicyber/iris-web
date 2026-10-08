@@ -32,9 +32,9 @@ from flask_wtf import FlaskForm
 from sqlalchemy import and_
 from sqlalchemy import desc
 
-from app import app
-from app import db
-from app import socket_io
+from flask import current_app as app
+from app.extensions import db
+from app.extensions import socket_io
 from app.blueprints.case.case_assets_routes import case_assets_blueprint
 from app.blueprints.case.case_graphs_routes import case_graph_blueprint
 from app.blueprints.case.case_ioc_routes import case_ioc_blueprint

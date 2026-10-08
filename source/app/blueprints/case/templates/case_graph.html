@@ -28,6 +28,11 @@
                             <span class="menu-title">Refresh</span>
                         </button>
                     </li>
+                    <li class="nav-item hidden-caret ml-2">
+                        <button class="btn btn-secondary btn-sm" id="btn_toggle_3d" onclick="toggle3DView();">
+                            <span class="menu-title">Show in 3D</span>
+                        </button>
+                    </li>
                 </ul>
             </ul>
         </nav>
@@ -40,6 +45,7 @@
                         <div class="card-body">
                                 <div class="row">
                                     <div id='graph-container'></div>
+                                    <div id='graph-container-3d' style="display:none;"></div>
                                 </div>
                         </div>
                 </div>
@@ -52,18 +58,60 @@
     {% include 'includes/footer.html' %}
 </div>
 
+<div class="modal" tabindex="-1" role="dialog" id="modal_add_ioc" data-backdrop="true">
+    <div class="modal-xl modal-dialog" role="document">
+        <div class="modal-content" id="modal_add_ioc_content">
+
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+
+<div class="modal modal-case-focus" tabindex="-1" role="dialog" id="modal_add_asset" data-backdrop="true">
+    <div class="modal-xl modal-dialog" role="document">
+        <div class="modal-content" id="modal_add_asset_content">
+
+        </div>
+        <!-- /.modal-content -->
+    </div>
+    <!-- /.modal-dialog -->
+</div>
+
+<div class="modal shadow-lg" tabindex="-1" id="modal_add_event" data-backdrop="static">
+    <div class="modal-xl modal-dialog" role="document">
+        <div class="modal-content" id="modal_add_event_content">
+
+        </div>
+            <!-- /.modal-content -->
+    </div>
+        <!-- /.modal-dialog -->
+</div>
+
+
 {% endblock content %}
 
 {% block javascripts %}
 
+{% include 'includes/footer_case.html' %}
 <script src="/static/assets/js/plugin/vis/vis.min.js"></script>
 <script src="/static/assets/js/plugin/vis/vis-network.min.js"></script>
+<script src="/static/assets/js/plugin/cytoscape/cytoscape.min.js"></script>
+<script src="/static/assets/js/plugin/cytoscape-context-menus/cytoscape-context-menus.js"></script>
+<script src="/static/assets/js/plugin/three/three.min.js"></script>
+<script src="/static/assets/js/plugin/three-spritetext/three-spritetext.min.js"></script>
+<script src="/static/assets/js/plugin/3d-force-graph/3d-force-graph.min.js"></script>
 <script src="/static/assets/js/plugin/bootstrap-slider/bootstrap-slider.min.js"></script>
 
 <script src="/static/assets/js/plugin/select/select2.js"></script>
 <script src="/static/assets/js/plugin/select/bootstrap-select.min.js"></script>
 
+<script src="/static/assets/js/core/socket.io.js"></script>
+<script src="/static/assets/js/iris/socket.manager.js"></script>
 <script src="/static/assets/js/iris/case.common.js"></script>
+<script src="/static/assets/js/iris/case.timeline.js"></script>
+<script src="/static/assets/js/iris/case.ioc.js"></script>
+<script src="/static/assets/js/iris/case.asset.js"></script>
 <script src="/static/assets/js/iris/case.graph.js"></script>
 {% endblock javascripts %}
 

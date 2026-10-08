@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/assets/css/alerts.css">
     <link rel="stylesheet" href="/static/assets/css/vis.graph.css">
     <link rel="stylesheet" href="/static/assets/css/vis.min.css">
+    <link rel="stylesheet" href="/static/assets/css/select2.css">
 
 {% endblock stylesheets %}
 
@@ -65,6 +66,7 @@
                         <button class="btn btn-sm mr-2" id="select-deselect-all" style="display:none;">Select all</button>
 
                         <button class="btn btn-sm mr-2" id="toggle-selection-mode">Select</button>
+                        <button class="btn btn-sm mr-2" id="openAddAlertModalBtn">Add Alert</button>
                         <button class="btn btn-sm mr-2" id="orderAlertsBtn"><i class="fas fa-arrow-up-short-wide"></i></button>
                         <button id="toggleAllAlertsBtn" class="btn btn-sm mr-2" onclick="toggleCollapseAllAlerts()" data-is-expanded="false">Expand All</button>
                         <div class="d-inline-block position-relative">
@@ -221,6 +223,7 @@
 }]
 </code></pre>
                         <p>Copy one of these conditions and paste it into the "Custom Conditions" field above, then adjust the values as needed.</p>
+                        <p>Available operators are: <code>eq</code>,<code>neq</code>,<code>in</code>,<code>not_in</code>,<code>like</code>,<code>not_like</code></p>
                     </div>
                 </div>
                 <div class="form-row mt-3">
@@ -357,6 +360,119 @@
   </div>
 </div>
 
+<div class="modal" id="addAlertModal" tabindex="-1" role="dialog" aria-labelledby="addAlertModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addAlertModalLabel">Add Alert</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="addAlertForm">
+                    <div class="form-row">
+                        <div class="col-md-6 form-group">
+                            <label for="add_alert_title">Title</label>
+                            <input type="text" class="form-control" id="add_alert_title" required>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label for="add_alert_source">Source</label>
+                            <input type="text" class="form-control" id="add_alert_source">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="col-md-12 form-group">
+                            <label for="add_alert_description">Description</label>
+                            <textarea class="form-control" id="add_alert_description" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="col-md-4 form-group">
+                            <label for="add_alert_status_id">Status</label>
+                            <select class="form-control" id="add_alert_status_id" required></select>
+                        </div>
+                        <div class="col-md-4 form-group">
+                            <label for="add_alert_severity_id">Severity</label>
+                            <select class="form-control" id="add_alert_severity_id" required></select>
+                        </div>
+                        <div class="col-md-4 form-group">
+                            <label for="add_alert_customer_id">Customer</label>
+                            <select class="form-control" id="add_alert_customer_id" required></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="col-md-4 form-group">
+                            <label for="add_alert_classification_id">Classification</label>
+                            <select class="form-control" id="add_alert_classification_id"></select>
+                        </div>
+                        <div class="col-md-4 form-group">
+                            <label for="add_alert_owner_id">Owner</label>
+                            <select class="form-control" id="add_alert_owner_id"></select>
+                        </div>
+                        <div class="col-md-4 form-group">
+                            <label for="add_alert_resolution_status_id">Resolution Status</label>
+                            <select class="form-control" id="add_alert_resolution_status_id"></select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="col-md-6 form-group">
+                            <label for="add_alert_source_event_time">Source Event Time (UTC)</label>
+                            <input type="datetime-local" class="form-control" id="add_alert_source_event_time">
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label for="add_alert_tags">Tags (comma separated)</label>
+                            <input type="text" class="form-control" id="add_alert_tags">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="col-md-6 form-group">
+                            <label for="add_alert_source_ref">Source Reference</label>
+                            <input type="text" class="form-control" id="add_alert_source_ref">
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label for="add_alert_source_link">Source Link</label>
+                            <input type="text" class="form-control" id="add_alert_source_link">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="col-md-6 form-group">
+                            <label for="add_alert_note">Note</label>
+                            <textarea class="form-control" id="add_alert_note" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label for="add_alert_context">Context (JSON)</label>
+                            <textarea class="form-control" id="add_alert_context" rows="2" placeholder='{"key":"value"}'></textarea>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="col-md-6 form-group">
+                            <label for="add_alert_source_content">Source Content (JSON)</label>
+                            <textarea class="form-control" id="add_alert_source_content" rows="2" placeholder='{"raw":"content"}'></textarea>
+                        </div>
+                    </div>
+                    <hr>
+                    <h6>Assets</h6>
+                    <div class="form-group">
+                        <label for="add_alert_assets_select">Link to assets</label>
+                        <select id="add_alert_assets_select" class="form-control" multiple style="width: 100%"></select>
+                    </div>
+                    <hr>
+                    <h6>IOCs</h6>
+                    <div class="form-group">
+                        <label for="add_alert_iocs_select">Link to IOCs</label>
+                        <select id="add_alert_iocs_select" class="form-control" multiple style="width: 100%"></select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-dark" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="submitAddAlertBtn">Create Alert</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 {% include 'modal_escalate.html' %}
 {% include 'modal_enrichment.html' %}
@@ -367,8 +483,10 @@
 {% block javascripts %}
     <script src="/static/assets/js/plugin/vis/vis.min.js"></script>
     <script src="/static/assets/js/plugin/vis/vis-network.min.js"></script>
+    <script src="/static/assets/js/plugin/select/select2.js"></script>
+    <script src="/static/assets/js/core/socket.io.js"></script>
+    <script src="/static/assets/js/iris/socket.manager.js"></script>
     <script src="/static/assets/js/iris/alerts.js"></script>
     <script src="/static/assets/js/iris/comments.js"></script>
-    <script src="/static/assets/js/core/socket.io.js"></script>
 {% endblock javascripts %}
 

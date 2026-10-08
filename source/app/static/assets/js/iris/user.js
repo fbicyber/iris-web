@@ -11,10 +11,10 @@ function renew_api() {
     })
         .then((willDelete) => {
             if (willDelete) {
-                get_request_api('/user/token/renew')
+                post_request_api('/user/token/renew')
                 .done((data) => {
                     if(notify_auto_api(data)) {
-                        location.reload(true);
+                        $('#userProfileApiKey').val(data.data.api_key);
                     }
                 })
             } else {
@@ -68,23 +68,6 @@ function refresh_user_permissions() {
     });
 }
 
-$('input[type=radio][name=iris-theme]').change(function() {
-    if (this.value == 'false') {
-        theme = 'light'
-    }
-    else if (this.value == 'true') {
-        theme = 'dark';
-    } else {
-        return;
-    }
-    get_request_api('theme/set/'+ theme)
-    .done((data) => {
-        if (notify_auto_api(data, true)) {
-            location.reload(true);
-        }
-    });
-});
-
 $('input[type=radio][name=user-has-deletion-prompt]').change(function() {
     if (this.value == 'false') {
         do_prompt = false;
@@ -94,7 +77,7 @@ $('input[type=radio][name=user-has-deletion-prompt]').change(function() {
     } else {
         return;
     }
-    get_request_api('deletion-prompt/set/'+ do_prompt)
+    post_request_api('deletion-prompt/set/'+ do_prompt)
     .then((data) => {
         if (notify_auto_api(data)) {
             userWhoamiRequest(true);

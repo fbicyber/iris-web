@@ -17,7 +17,7 @@ function update_settings() {
 
 function init_db_backup() {
 
-    get_request_api('/manage/server/backups/make-db')
+    post_request_api('/manage/server/backups/make-db')
     .done((data) => {
             msg = ""
             for (idx in data.data) {

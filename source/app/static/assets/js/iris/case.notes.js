@@ -371,10 +371,21 @@ function note_revision_delete(_item, _rev) {
 /* Fetch the edit modal with content from server */
 async function note_detail(id) {
 
+    // Save any pending changes before switching notes
+    if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+        // Check if there are unsaved changes
+        if ($('#last_saved').hasClass('btn-danger')) {
+            save_note();
+            // Wait a moment for the save to be initiated
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+
     get_request_api('/case/notes/' + id)
     .done((data) => {
         if (notify_auto_api(data, true, true)) {
-            let timer;
             let timeout = 10000;
             $('#form_note').keyup(function(){
                 if(timer) {
@@ -460,44 +471,6 @@ async function note_detail(id) {
         }
 
     });
-}
-
-function handle_ed_paste(event) {
-    filename = null;
-    const { items } = event.originalEvent.clipboardData;
-    for (let i = 0; i < items.length; i += 1) {
-      const item = items[i]; 
-
-      if (item.kind === 'string') {
-        item.getAsString(function (s){
-            filename = $.trim(s.replace(/\t|\n|\r/g, '')).substring(0, 40);
-        });
-      }
-
-      if (item.kind === 'file') {
-        const blob = item.getAsFile();
-		
-        if (blob !== null) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-				notify_success('The file is uploading in background. Don\'t leave the page');
-
-                if (filename === null) {
-					filename = random_filename(25);
-                }
-
-                upload_interactive_data(e.target.result, filename, function(data){
-                    url = data.data.file_url + case_param();
-                    event.preventDefault();
-                    note_editor.insertSnippet(`\n![${filename}](${url} =100%x40%)\n`);
-                });
-            };
-			reader.readAsDataURL(blob);
-        } else {
-            notify_error('Unsupported direct paste of this item. Use datastore to upload.');
-        }
-      }
-    }
 }
 
 
@@ -677,7 +650,7 @@ function add_folder(directory_id) {
     post_request_api('/case/notes/directories/add', JSON.stringify(data))
     .done((data) => {
         if (notify_auto_api(data, true)) {
-            rename_folder(data.data.id);
+            rename_folder(data.data.id,true);
         }
     });
 }
@@ -709,7 +682,24 @@ function rename_folder_api(directory_id, newName) {
         JSON.stringify(data))
     .done((data) => {
         if (notify_auto_api(data)) {
-            load_directories();
+            // Preserve the collapse state before reloading
+            let collapsedDirs = new Set();
+            $('.directory-container').each(function() {
+                if (!$(this).is(':visible')) {
+                    let dirId = $(this).parent().attr('id');
+                    if (dirId) {
+                        collapsedDirs.add(dirId);
+                    }
+                }
+            });
+
+            load_directories().then(function() {
+                // Restore the collapse state after reloading
+                collapsedDirs.forEach(function(dirId) {
+                    $('#' + dirId).find('.directory-container').first().hide();
+                    $('#' + dirId).find('.fa-folder-open').first().removeClass('fa-folder-open').addClass('fa-folder');
+                });
+            });
         }
     });
 }
@@ -870,7 +860,7 @@ function rename_folder(directory_id, new_directory=false) {
 
     // Prompt the user for a new name
     swal({
-        title: new_directory?  'Rename directory': "Name the new folder",
+        title: new_directory?  'Name the new folder': "Rename directory",
         text: 'Enter a new name for the folder',
         content: 'input',
         buttons: {
@@ -1138,6 +1128,17 @@ function note_interval_pinger() {
 
 $(document).ready(function(){
 
+    // Save notes before navigating away from the page
+    $(window).on('beforeunload', function() {
+        if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+            if ($('#last_saved').hasClass('btn-danger')) {
+                save_note();
+            }
+        }
+    });
+
     load_directories().then(
         function() {
             let shared_id = getSharedLink();
@@ -1153,7 +1154,8 @@ $(document).ready(function(){
 
 
     cid = get_caseid();
-    collaborator_socket = io.connect();
+    // Use shared socket manager instead of creating new connection
+    collaborator_socket = window.socketManager.getSocket();
     collaborator_socket.emit('join-notes-overview', { 'channel': 'case-' + cid + '-notes' });
 
     collaborator_socket.on('ping-note', function(data) {

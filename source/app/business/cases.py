@@ -22,11 +22,12 @@ import traceback
 from flask_login import current_user
 
 from marshmallow.exceptions import ValidationError
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.schema.marshables import CaseSchema
 
-from app import app
-from app import db
+from flask import current_app as app
+from app.extensions import db
 
 from app.util import add_obj_history_entry
 
@@ -71,11 +72,36 @@ def _load(request_data, **kwargs):
         raise BusinessProcessingError('Data error', e.messages)
 
 
+def _fill_case_id_custom_attribute(case):
+    if not case.custom_attributes:
+        return
+
+    for tab_name in case.custom_attributes:
+        for field_name in case.custom_attributes[tab_name]:
+            if field_name.lower() != 'case id':
+                continue
+
+            case.custom_attributes[tab_name][field_name]['value'] = str(case.case_id)
+            flag_modified(case, 'custom_attributes')
+            db.session.commit()
+            return
+
+
 def create(request_json):
     try:
         # TODO remove caseid doesn't seems to be useful for call_modules_hook => remove argument
         request_data = call_modules_hook('on_preload_case_create', request_json, None)
         case_template_id = request_data.pop('case_template_id', None)
+        # Never load a client-supplied primary key on create: marshmallow-sqlalchemy
+        # would fetch and overwrite an arbitrary existing case instead of creating a new
+        # one, and the custom_attributes post_load hook would merge attacker data into
+        # that foreign case and commit it (CWE-639).
+        request_data.pop('case_id', None)
+
+        # A case can only be filed under a customer the requesting user has access to,
+        # otherwise a user assigned to one customer could create cases under another.
+        if not user_has_client_access(current_user.id, request_data.get('case_customer')):
+            raise BusinessProcessingError('Invalid customer ID. Permission denied.')
 
         case = _load(request_data)
         case.owner_id = current_user.id
@@ -89,6 +115,7 @@ def create(request_json):
         case.state_id = get_case_state_by_name('Open').state_id
 
         case.save()
+        _fill_case_id_custom_attribute(case)
 
         if case_template_id and len(case_template_id) > 0:
             try:

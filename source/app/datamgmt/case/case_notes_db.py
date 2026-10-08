@@ -18,7 +18,7 @@
 from flask_login import current_user
 from sqlalchemy import and_
 
-from app import db
+from app.extensions import db
 from app.datamgmt.manage.manage_attribute_db import get_default_custom_attributes
 from app.datamgmt.states import update_notes_state
 from app.models import Comments, NoteDirectory, NoteRevisions
@@ -47,16 +47,23 @@ def get_directory(directory_id, caseid):
     return directory
 
 
-def delete_directory(directory, caseid):
+def delete_directory(directory, caseid, _visited=None):
+    # _visited guards against a pre-existing parent cycle in the data (e.g. created
+    # before cycle validation was added) turning this recursion into an unbounded loop.
+    if _visited is None:
+        _visited = set()
+
     # Proceed to delete directory, but remove all associated notes and subdirectories recursively
-    if directory:
+    if directory and directory.id not in _visited:
+        _visited.add(directory.id)
+
         # Delete all notes in the directory
         for note in directory.notes:
             delete_note(note.note_id, caseid)
 
         # Delete all subdirectories
         for subdirectory in directory.subdirectories:
-            delete_directory(subdirectory, caseid)
+            delete_directory(subdirectory, caseid, _visited)
 
         # Delete the directory
         db.session.delete(directory)
@@ -311,12 +318,17 @@ def find_pattern_in_notes(pattern, caseid):
     return notes
 
 
-def get_case_note_comments(note_id):
+def get_case_note_comments(note_id, caseid):
     return Comments.query.filter(
         NotesComments.comment_note_id == note_id
     ).join(
         NotesComments,
         Comments.comment_id == NotesComments.comment_id
+    ).join(
+        Notes,
+        Notes.note_id == NotesComments.comment_note_id
+    ).filter(
+        Notes.note_case_id == caseid
     ).order_by(
         Comments.comment_date.asc()
     ).all()
@@ -343,7 +355,7 @@ def get_case_notes_comments_count(notes_list):
     ).all()
 
 
-def get_case_note_comment(note_id, comment_id):
+def get_case_note_comment(note_id, comment_id, caseid):
     return db.session.query(
         Comments.comment_id,
         Comments.comment_text,
@@ -356,11 +368,15 @@ def get_case_note_comment(note_id, comment_id):
         NotesComments,
         Comments.comment_id == NotesComments.comment_id
     ).join(
+        Notes,
+        Notes.note_id == NotesComments.comment_note_id
+    ).join(
         User,
         User.id == Comments.comment_user_id
     ).filter(
         NotesComments.comment_note_id == note_id,
-        NotesComments.comment_id == comment_id
+        NotesComments.comment_id == comment_id,
+        Notes.note_case_id == caseid
     ).first()
 
 
@@ -404,7 +420,15 @@ def get_directories_with_note_count(case_id):
     return directories_with_note_count
 
 
-def get_directory_with_note_count(directory):
+def get_directory_with_note_count(directory, _visited=None):
+    # _visited guards against a pre-existing parent cycle in the data (e.g. created
+    # before cycle validation was added) turning this recursion into an unbounded loop.
+    if _visited is None:
+        _visited = set()
+    if directory.id in _visited:
+        return {'id': directory.id, 'name': directory.name, 'note_count': 0, 'subdirectories': []}
+    _visited.add(directory.id)
+
     note_count = Notes.query.filter_by(directory_id=directory.id).count()
 
     directory_dict = {
@@ -416,6 +440,6 @@ def get_directory_with_note_count(directory):
 
     if directory.subdirectories:
         for subdirectory in directory.subdirectories:
-            directory_dict['subdirectories'].append(get_directory_with_note_count(subdirectory))
+            directory_dict['subdirectories'].append(get_directory_with_note_count(subdirectory, _visited))
 
     return directory_dict

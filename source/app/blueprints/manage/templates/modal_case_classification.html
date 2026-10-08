@@ -25,14 +25,14 @@
 
             {% if case_classification.id %}
                 <button type="button" class="btn btn-outline-danger mt-5"
-                onclick="delete_case_classification('{{ case_classification.id }}');">Delete</button>
+                onclick="delete_case_classification('{{ case_classification.id }}');" aria-label="Delete case classification">Delete</button>
                 <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_case_classification">Update</button>
+                id="submit_new_case_classification" aria-label="Update case classification">Update</button>
 
             {% else %}
 
                 <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_case_classification">Save</button>
+                id="submit_new_case_classification" aria-label="Save case classification">Save</button>
 
             {% endif %}
             </div>

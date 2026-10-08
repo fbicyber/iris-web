@@ -2,6 +2,107 @@
 var g_ioc_id = null;
 var g_ioc_desc_editor = null;
 
+function handle_ed_paste(event, editor_instance) {
+    let filename = null;
+    const { items } = event.originalEvent.clipboardData;
+    for (let i = 0; i < items.length; i += 1) {
+        const item = items[i];
+
+        if (item.kind === 'string') {
+            item.getAsString(function (s) {
+                filename = $.trim(s.replace(/\t|\n|\r/g, '')).substring(0, 40);
+            });
+        }
+
+        if (item.kind === 'file') {
+            const blob = item.getAsFile();
+
+            if (blob !== null) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    notify_success('The file is uploading in background. Don\'t leave the page');
+
+                    if (filename === null) {
+                        filename = random_filename(25);
+                    }
+
+                    upload_interactive_data(e.target.result, filename, function (data) {
+                        url = data.data.file_url + case_param();
+                        event.preventDefault();
+                        editor_instance.insertSnippet(`\n![${filename}](${url} =40%x40%)\n`);
+                    });
+                };
+                reader.readAsDataURL(blob);
+            } else {
+                notify_error('Unsupported direct paste of this item. Use datastore to upload.');
+            }
+        }
+    }
+}
+
+function bind_ioc_editor_paste(editor_instance) {
+    $('#ioc_description').off('paste.handle_ed_paste').on('paste.handle_ed_paste', (event) => {
+        event.preventDefault();
+        handle_ed_paste(event, editor_instance);
+    });
+}
+
+function strip_markdown_images(text) {
+    if (typeof text !== 'string') {
+        return text;
+    }
+
+    return text
+        .replace(/!\[[^\]]*]\([^)]+\)/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function refresh_ioc_image_preview(editor_instance) {
+    if (!editor_instance) {
+        return;
+    }
+
+    const raw_content = editor_instance.getValue() || '';
+    const image_matches = [...raw_content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)];
+    const preview_container = $('#ioc_image_preview_container');
+    const preview_content = $('#ioc_image_preview_content');
+
+    if (image_matches.length === 0) {
+        preview_content.empty();
+        preview_container.hide();
+        return;
+    }
+
+    let html = '';
+    for (const match of image_matches) {
+        const alt_text = sanitizeHTML((match[1] || 'attachment').trim());
+        const url_part = (match[2] || '').trim();
+        const image_url = sanitizeHTML(url_part.split(' =')[0].trim());
+        if (!image_url) {
+            continue;
+        }
+
+        html += `<img src="${image_url}" alt="${alt_text}" class="img-fluid mb-2 mr-2 border rounded" style="max-height:220px;">`;
+    }
+
+    if (html.length === 0) {
+        preview_content.empty();
+        preview_container.hide();
+        return;
+    }
+
+    preview_content.html(html);
+    preview_container.show();
+}
+
+function bind_ioc_image_preview(editor_instance) {
+    refresh_ioc_image_preview(editor_instance);
+    editor_instance.getSession().on('change', function () {
+        refresh_ioc_image_preview(editor_instance);
+    });
+}
+
 
 function reload_iocs() {
     get_case_ioc();
@@ -21,7 +122,7 @@ function edit_in_ioc_desc() {
     }
 }
 
-/* Fetch a modal that is compatible with the requested ioc type */ 
+/* Fetch a modal that is compatible with the requested ioc type */
 function add_ioc() {
     url = 'ioc/add/modal' + case_param();
 
@@ -39,6 +140,8 @@ function add_ioc() {
                             }, null);
 
         g_ioc_desc_editor.setOption("minLines", "10");
+        bind_ioc_editor_paste(g_ioc_desc_editor);
+        bind_ioc_image_preview(g_ioc_desc_editor);
         edit_in_ioc_desc();
 
         headers = get_editor_headers('g_ioc_desc_editor', null, 'ioc_edition_btn');
@@ -63,7 +166,7 @@ function add_ioc() {
             data['custom_attributes'] = attributes;
 
             id = $('#ioc_id').val();
-            
+
             if ($('#ioc_one_per_line').is(':checked')) {
                 let iocs_values = $('#ioc_value').val();
                 let iocs_list = iocs_values.split(/\r?\n/);
@@ -195,7 +298,7 @@ function edit_ioc(ioc_id) {
              ajax_notify_error(xhr, url);
              return false;
         }
-        
+
         g_ioc_id = ioc_id;
         g_ioc_desc_editor = get_new_ace_editor('ioc_description', 'ioc_desc_content', 'target_ioc_desc',
                             function() {
@@ -204,6 +307,8 @@ function edit_ioc(ioc_id) {
                             }, null, false, false);
 
         g_ioc_desc_editor.setOption("minLines", "10");
+        bind_ioc_editor_paste(g_ioc_desc_editor);
+        bind_ioc_image_preview(g_ioc_desc_editor);
         preview_ioc_description(true);
         headers = get_editor_headers('g_ioc_desc_editor', null, 'ioc_edition_btn');
         $('#ioc_edition_btn').append(headers);
@@ -241,6 +346,7 @@ function preview_ioc_description(no_btn_update) {
 }
 
 function update_ioc(ioc_id) {
+    console.log("update ioc called");
     update_ioc_ext(ioc_id, true);
 }
 
@@ -288,22 +394,33 @@ function update_ioc_ext(ioc_id, do_close) {
 }
 
 /* Delete an ioc */
-function delete_ioc(ioc_id) {
-    do_deletion_prompt("You are about to delete IOC #" + ioc_id)
-    .then((doDelete) => {
-        if (doDelete) {
-            post_request_api('ioc/delete/' + ioc_id)
-            .done((data) => {
-                if (data.status == 'success') {
-                    reload_iocs();
-                    notify_success(data.message);
-                    $('#modal_add_ioc').modal('hide');
+function delete_ioc(ioc_id = null, skip_prompt = false) {
+    var ioc_id_set = new Set();
 
-                } else {
-                    swal("Oh no !", data.message, "error")
-                }
-            })
-        }
+    if (ioc_id !== undefined && ioc_id !== null && ioc_id !== '') {
+        ioc_id_set.add(ioc_id.toString());
+    } else {
+        var table_selected_rows = Table.rows('.selected').data();
+        ioc_id_set = get_selected_rows_item_ids(table_selected_rows, "ioc");
+    }
+
+    ioc_id_set.forEach(ioc_id => {
+        window.location.hash = ioc_id;
+         (skip_prompt ? Promise.resolve(true) : do_deletion_prompt("You are about to delete IOC #" + ioc_id))
+        .then((doDelete) => {
+            if (doDelete) {
+                post_request_api('ioc/delete/' + ioc_id)
+                .done((data) => {
+                    if (data.status == 'success') {
+                        reload_iocs();
+                        notify_success(data.message);
+                        $('#modal_add_ioc').modal('hide');
+                    } else {
+                        swal("Oh no !", data.message, "error")
+                    }
+                })
+            }
+        });
     });
 }
 
@@ -358,6 +475,7 @@ $(document).ready(function(){
         dom: '<"container-fluid"<"row"<"col"l><"col"f>>>rt<"container-fluid"<"row"<"col"i><"col"p>>>',
         fixedHeader: true,
         aaData: [],
+        stateSave: true,
         aoColumns: [
           {
             "data": "ioc_value",
@@ -396,7 +514,7 @@ $(document).ready(function(){
           { "data": "ioc_description",
            "render": function (data, type, row, meta) {
               if (type === 'display') {
-                  return ret_obj_dt_description(data);
+                  return ret_obj_dt_description(strip_markdown_images(data));
               }
               return data;
             }
@@ -407,7 +525,7 @@ $(document).ready(function(){
                   let tags = "";
                   let de = data.split(',');
                   for (let tag in de) {
-                    individual_tag = ellipsis_field_raw(de[tag], 20);  
+                    individual_tag = ellipsis_field_raw(de[tag], 20);
                     tags += get_tag_from_data(individual_tag, 'badge badge-light ml-2');
                   }
                   return tags;
@@ -420,8 +538,8 @@ $(document).ready(function(){
               if (type === 'display' && data != null) {
                   links = "";
                   for (link in data) {
-                    links += '<span data-toggle="popover" style="cursor: pointer;" data-trigger="hover" class="text-primary mr-3" href="#" title="Case info" data-content="' + sanitizeHTML(data[link]['case_name']) +
-                     ' (' + sanitizeHTML(data[link]['client_name']) + ')' + '">#' + data[link]['case_id'] + '</span>'
+                    links += '<span data-toggle="popover" style="cursor: pointer;" data-trigger="hover" class="text-primary mr-3" href="#" title="Case info" data-content="' + escapeHtml(data[link]['case_name']) +
+                     ' (' + escapeHtml(data[link]['client_name']) + ')' + '">#' + data[link]['case_id'] + '</span>'
                   }
                   return links;
               } else if (type === 'export' && data != null) {
@@ -450,6 +568,7 @@ $(document).ready(function(){
         ordering: true,
         processing: true,
         retrieve: true,
+        pageLength: 100,
         responsive: {
             details: {
                 display: $.fn.dataTable.Responsive.display.childRow,
@@ -470,18 +589,35 @@ $(document).ready(function(){
             hide_table_search_input( columns );
     });
 
-    // apply search 
-    $('#datatable_search_bar').keyup(function(){
-        Table.search($(this).val()).draw() ;
-    })
-    
-    // prevent redirect to case #1 by default 
-    $('#datatable_search_bar').on("keypress", function(e){
+    // apply search
+    $('input#datatable_search_bar').keyup(function(){
+        Table.search($(this).val()).draw();
+    });
+
+    // prevent redirect to case #1 by default
+    $('input#datatable_search_bar').on("keypress", function(e){
         if (e.which == 13) {
             e.preventDefault();
         }
-    })
-    
+    });
+
+    function clearGlobalSearchIfSearchBarEmpty() {
+        let searchBarValue = $('input#datatable_search_bar').first().val();
+        if (searchBarValue === undefined) {
+            return;
+        }
+
+        if (searchBarValue.trim() === '' && Table.search() !== '') {
+            Table.search('').draw();
+            Table.state.save();
+        }
+    }
+
+    clearGlobalSearchIfSearchBarEmpty();
+    $(window).on('pageshow.caseIocSearchReset', function() {
+        clearGlobalSearchIfSearchBarEmpty();
+    });
+
     var buttons = new $.fn.dataTable.Buttons(Table, {
      buttons: [
         { "extend": 'csvHtml5', "text":'<i class="fas fa-cloud-download-alt"></i>',"className": 'btn btn-link text-white'

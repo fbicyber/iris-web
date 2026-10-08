@@ -19,7 +19,7 @@
 from flask_login import current_user
 from marshmallow.exceptions import ValidationError
 
-from app import db
+from app.extensions import db
 from app.models import Ioc, IocLink
 from app.models.authorization import CaseAccessLevel
 from app.datamgmt.case.case_iocs_db import add_ioc
@@ -32,13 +32,34 @@ from app.schema.marshables import IocSchema
 from app.iris_engine.module_handler.module_handler import call_modules_hook
 from app.iris_engine.utils.tracker import track_activity
 from app.business.errors import BusinessProcessingError
+from app.business.errors import PermissionDeniedError
 from app.business.permissions import check_current_user_has_some_case_access_stricter
 from app.datamgmt.case.case_iocs_db import get_ioc
+from app.iris_engine.access_control.utils import ac_fast_check_user_has_case_access
 
 
 def get_ioc_by_identifier(ioc_identifier):
+    ioc = get_ioc(ioc_identifier)
+    if not ioc:
+        return None
 
-    return get_ioc(ioc_identifier)
+    # An IOC has no single owning case (it can be linked to several), so access is
+    # granted if the user can read at least one case it is linked to. Without this,
+    # any authenticated user could enumerate every indicator on the platform by ioc_id,
+    # across every case and customer (CWE-862).
+    linked_case_ids = [row[0] for row in IocLink.query.filter(
+        IocLink.ioc_id == ioc_identifier
+    ).with_entities(IocLink.case_id).all()]
+
+    has_access = any(
+        ac_fast_check_user_has_case_access(
+            current_user.id, cid, [CaseAccessLevel.read_only, CaseAccessLevel.full_access]) is not None
+        for cid in linked_case_ids
+    )
+    if not has_access:
+        raise PermissionDeniedError('Permission denied')
+
+    return ioc
 
 
 def _load(request_data):
@@ -54,6 +75,11 @@ def create(request_json, case_identifier):
     # TODO ideally schema validation should be done before, outside the business logic in the REST API
     #      for that the hook should be called after schema validation
     request_data = call_modules_hook('on_preload_ioc_create', data=request_json, caseid=case_identifier)
+    # Never load a client-supplied primary key on create: marshmallow-sqlalchemy would
+    # fetch and mutate an existing IOC from another case instead of creating a new one,
+    # and its custom_attributes post_load hook would merge attacker data straight into
+    # that foreign IOC and commit it (CWE-639).
+    request_data.pop('ioc_id', None)
     ioc = _load(request_data)
 
     if not check_ioc_type_id(type_id=ioc.ioc_type_id):

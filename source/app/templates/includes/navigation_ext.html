@@ -67,6 +67,15 @@
 								<i class="flaticon-shapes-1"></i>
 							</a>
 						</li>
+						<li class="nav-item hidden-caret">
+							<a href="#"
+							   title="{% if current_user.in_dark_mode %}Switch to light mode{% else %}Switch to dark mode{% endif %}"
+							   class="nav-link theme-mode-toggle rounded-md border border-white/40"
+							   style="border-color: rgba(255,255,255,0.4); border-width: 1px; border-style: solid; border-radius: .375rem; padding: .35rem .55rem;"
+							   data-theme-dark="{% if current_user.in_dark_mode %}true{% else %}false{% endif %}">
+								<i class="fa {% if current_user.in_dark_mode %}fa-sun{% else %}fa-moon{% endif %}"></i>
+							</a>
+						</li>
 					</ul>
 				</div>
 

@@ -117,9 +117,9 @@
                                         <div class="form-group mt-3">
                                             <label for="userApiKey" class="placeholder">User API Key</label>
                                             <div class="input-group">
-                                                <input autocomplete="off" class="form-control" type="text" value="{{ user.user_api_key }}" id="userApiKey" disabled>
+                                                <input autocomplete="off" class="form-control" type="text" value="{{ user.user_api_key }}" placeholder="Hidden - click Renew to generate and reveal a new key" id="userApiKey" disabled>
                                                 <div class="input-group-append">
-                                                    <button class="btn btn-sm btn-dark" type="button" onclick="renew_api_for_user({{ user.user_id }})">Renew</button>
+                                                    <button class="btn btn-sm btn-dark" type="button" onclick="renew_api_for_user({{ user.user_id }})" aria-label="Renew API key">Renew</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -127,30 +127,30 @@
                                 </div>
                                 {% if user.user_id %}
                                     <button type="button" class="btn btn-danger mt-5"
-                                    onclick="delete_user('{{ user.user_id }}');">Delete</button>
+                                    onclick="delete_user('{{ user.user_id }}');" aria-label="Delete user">Delete</button>
                                     {% if user.user_active %}
                                     <button type="button" class="btn btn-outline-danger mt-5"
-                                    onclick="deactivate_user('{{ user.user_id }}');">Deactivate</button>
+                                    onclick="deactivate_user('{{ user.user_id }}');" aria-label="Deactivate user">Deactivate</button>
                                     {% else %}
                                     <button type="button" class="btn btn-outline-success mt-5"
-                                    onclick="activate_user('{{ user.user_id }}');">Activate</button>
+                                    onclick="activate_user('{{ user.user_id }}');" aria-label="Activate user">Activate</button>
                                     {% endif %}
 
                                     <button type="button" class="btn btn-outline-success ml-1 mt-5 float-right"
-                                    id="submit_new_user">Update</button>
+                                    id="submit_new_user" aria-label="Update user">Update</button>
 
                                     <button type="button" class="btn btn-dark mt-5 float-right"
-                                    onclick="refresh_user_ac('{{ user.user_id }}');" id="users_refresh_ac_btn">Refresh access</button>
+                                    onclick="refresh_user_ac('{{ user.user_id }}');" id="users_refresh_ac_btn" aria-label="Refresh user access">Refresh access</button>
 
                                     {% if server_settings.enforce_mfa %}
                                     <button type="button" class="btn btn-dark mt-5 mr-2 float-right"
-                                    onclick="reset_user_mfa('{{ user.user_id }}');" id="users_reset_mfa_btn">Reset MFA</button>
+                                    onclick="reset_user_mfa('{{ user.user_id }}');" id="users_reset_mfa_btn" aria-label="Reset user MFA">Reset MFA</button>
                                     {% endif %}
 
                                 {% else %}
 
                                     <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                                    id="submit_new_user">Save</button>
+                                    id="submit_new_user" aria-label="Save user">Save</button>
 
                                 {% endif %}
                             </form>
@@ -183,7 +183,7 @@
                         <div class="row">
                             <div class="container col-md-12">
                                 <span class="ml-2 mt-3">Groups the user is member of.</span>
-                                <button class="btn btn-dark btn-sm pull-right mr-2" onclick="manage_user_groups({{ user.user_id }});">
+                                <button class="btn btn-dark btn-sm pull-right mr-2" onclick="manage_user_groups({{ user.user_id }});" aria-label="Manage user groups">
                                     <span class="menu-title">Manage</span>
                                 </button>
                             </div>
@@ -215,7 +215,7 @@
                         <div class="row">
                             <div class="container col-md-12">
                                 <span class="ml-2 mt-3">Customers the user belongs to.</span>
-                                <button class="btn btn-dark btn-sm pull-right mr-2" onclick="manage_user_clients({{ user.user_id }});">
+                                <button class="btn btn-dark btn-sm pull-right mr-2" onclick="manage_user_clients({{ user.user_id }});" aria-label="Manage user customers">
                                     <span class="menu-title">Manage</span>
                                 </button>
                             </div>
@@ -248,10 +248,10 @@
                                     <span>Cases accesses are usually inherited from groups memberships. These are not displayed here. This tab allows to add granular case access if necessary.</span>
                                 </div>
                                 <div class="col-4 pull-right">
-                                    <button class="btn btn-dark btn-sm pull-right" onclick="refresh_user_cac({{ user.user_id }});">
+                                    <button class="btn btn-dark btn-sm pull-right" onclick="refresh_user_cac({{ user.user_id }});" aria-label="Refresh user case access">
                                         <span class="menu-title">Refresh</span>
                                     </button>
-                                    <button class="btn btn-dark btn-sm pull-right mr-2" onclick="manage_user_cac({{ user.user_id  }});">
+                                    <button class="btn btn-dark btn-sm pull-right mr-2" onclick="manage_user_cac({{ user.user_id  }});" aria-label="Set user case access">
                                         <span class="menu-title" id="manage_user_cac_button">Set case access</span>
                                     </button>
                                 </div>

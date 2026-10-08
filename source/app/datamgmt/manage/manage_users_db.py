@@ -22,8 +22,8 @@ from flask_login import current_user
 from sqlalchemy import and_, desc, asc
 
 import app
-from app import bc
-from app import db
+from app.extensions import bc
+from app.extensions import db
 from app.datamgmt.case.case_db import get_case
 from app.iris_engine.access_control.utils import ac_access_level_mask_from_val_list, ac_ldp_group_removal
 from app.iris_engine.access_control.utils import ac_access_level_to_list
@@ -494,7 +494,9 @@ def get_user_details(user_id, include_api_key=False):
     row['user_is_service_account'] = user.is_service_account
 
     if include_api_key:
-        row['user_api_key'] = user.api_key
+        # The stored value is a one-way hash, not a usable key: it can only ever be
+        # shown once, immediately after creation or renewal.
+        row['user_api_key'] = None
 
     row['user_groups'] = get_user_groups(user_id)
     row['user_organisations'] = get_user_organisations(user_id)

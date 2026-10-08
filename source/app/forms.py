@@ -175,6 +175,7 @@ class AssetBasicForm(FlaskForm):
     asset_type_id = SelectField(u'Asset Type', validators=[DataRequired()])
     analysis_status_id = SelectField(u'Analysis Status', validators=[DataRequired()])
     asset_tags = StringField(u'Asset Tags')
+    asset_in_graph = BooleanField(u'Display in graph')
 
 
 class CaseEventForm(FlaskForm):
@@ -185,6 +186,7 @@ class CaseEventForm(FlaskForm):
     event_assets = SelectField(u'Event Asset')
     event_category_id = SelectField(u'Event Category')
     event_tz = StringField(u'Event Timezone', validators=[DataRequired()])
+    event_end_tz = StringField(u'Event End Timezone', validators=[DataRequired()])
     event_in_summary = BooleanField(u'Add to summary')
     event_tags = StringField(u'Event Tags')
     event_in_graph = BooleanField(u'Display in graph')
@@ -212,6 +214,7 @@ class ModalAddCaseIOCForm(FlaskForm):
     ioc_description = TextAreaField(u'IOC Description')
     ioc_type_id = SelectField(u'IOC Type', validators=[DataRequired()])
     ioc_tlp_id = SelectField(u'IOC TLP', validators=[DataRequired()])
+    ioc_in_graph = BooleanField(u'Display in graph')
 
 
 class ModalDSFileForm(FlaskForm):

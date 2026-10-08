@@ -30,6 +30,9 @@ from app.datamgmt.case.case_events_db import get_case_events_assets_graph
 from app.datamgmt.case.case_events_db import get_case_events_ioc_graph
 from app.datamgmt.case.case_assets_db import get_assets, get_assets_ioc_links
 from app.datamgmt.case.case_iocs_db import get_iocs
+from app.models import CaseAssets
+from app.models import Ioc
+from app.models import IocLink
 from app.models.authorization import CaseAccessLevel
 from app.util import ac_api_case_requires
 from app.util import ac_case_requires
@@ -63,6 +66,24 @@ def case_graph_get_data(caseid):
     all_assets = get_assets(caseid)
     all_iocs = get_iocs(caseid)
     asset_ioc_links = get_assets_ioc_links(caseid)
+    standalone_asset_ids_in_graph = {
+        row.asset_id for row in CaseAssets.query.with_entities(
+            CaseAssets.asset_id
+        ).filter(
+            CaseAssets.case_id == caseid,
+            CaseAssets.asset_in_graph == True
+        ).all()
+    }
+    standalone_ioc_ids_in_graph = {
+        row.ioc_id for row in IocLink.query.with_entities(
+            Ioc.ioc_id
+        ).join(
+            IocLink.ioc
+        ).filter(
+            IocLink.case_id == caseid,
+            Ioc.ioc_in_graph == True
+        ).all()
+    }
 
     nodes = []
     edges = []
@@ -112,6 +133,7 @@ def case_graph_get_data(caseid):
             'image': '/static/assets/img/graph/' + img,
             'shape': 'image',
             'title': title,
+            'type': node_type,
             'value': 1
         }
 
@@ -133,7 +155,8 @@ def case_graph_get_data(caseid):
         else:
             tmp[event.event_id] = {
                 'master_node':  [],
-                'list': [ak]
+                'list': [ak],
+                'color': event.event_color,
             }
 
     for event_id in tmp:
@@ -141,20 +164,28 @@ def case_graph_get_data(caseid):
 
             if subset[0]['node_type'] == 'ioc' and subset[1]['node_type'] == 'ioc' and len(tmp[event_id]['list']) != 2:
                 continue
-                
+
+            color = tmp[event_id]['color']
+            if color:
+                if len(color) > 7:
+                    color = color[0:7]
+
             edge = {
+                'eid': event_id,
                 'from': subset[0]['node_id'],
                 'to': subset[1]['node_id'],
                 'title': subset[0]['node_title'],
-                'dashes': subset[0]['node_type'] == 'ioc' or subset[1]['node_type'] == 'ioc'
+                'dashes': subset[0]['node_type'] == 'ioc' or subset[1]['node_type'] == 'ioc',
+                'color': color,
+                'type': 'event',
             }
             edges.append(edge)
-    
-    
+
+
     # add nodes for assets not linked to any event
     for asset in all_assets:
         idx = f'a{asset.asset_id}'
-        if not any(node['id'] == idx for node in nodes):
+        if asset.asset_id in standalone_asset_ids_in_graph and not any(node['id'] == idx for node in nodes):
             img = asset.asset_icon_compromised if asset.asset_compromise_status_id == 1 else asset.asset_icon_not_compromised
             title = "{} -{}".format(asset.asset_ip or asset.asset_external_ip or '', asset.asset_description)
             label = asset.asset_name
@@ -174,7 +205,7 @@ def case_graph_get_data(caseid):
     # add nodes for IOCs not linked to any event
     for ioc in all_iocs:
         idx = f'b{ioc.ioc_id}'
-        if not any(node['id'] == idx for node in nodes):
+        if ioc.ioc_id in standalone_ioc_ids_in_graph and not any(node['id'] == idx for node in nodes):
             new_node = {
                 'id': idx,
                 'label': ioc.ioc_value,
@@ -186,7 +217,7 @@ def case_graph_get_data(caseid):
             if current_user.in_dark_mode:
                 new_node['font'] = "12px verdana white"
             nodes.append(new_node)
-    
+
     # add edges between assets and IOCs that are not linked to any event
     for link in asset_ioc_links:
         asset_idx = f'a{link.asset_id}'
@@ -196,7 +227,8 @@ def case_graph_get_data(caseid):
                 'from': asset_idx,
                 'to': ioc_idx,
                 'title': f"Link between Asset {asset_idx} and IOC {ioc_idx}",
-                'dashes': True 
+                'dashes': True,
+                'type': 'link',
             }
             edges.append(edge)
 

@@ -22,14 +22,14 @@
             {% if not case_state.protected %}
                 {% if case_state.state_id %}
                     <button type="button" class="btn btn-outline-danger mt-5"
-                    onclick="delete_case_state('{{ case_state.state_id }}');">Delete</button>
+                    onclick="delete_case_state('{{ case_state.state_id }}');" aria-label="Delete case state">Delete</button>
                     <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                    id="submit_new_case_state">Update</button>
+                    id="submit_new_case_state" aria-label="Update case state">Update</button>
 
                 {% else %}
 
                     <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                    id="submit_new_case_state">Save</button>
+                    id="submit_new_case_state" aria-label="Save case state">Save</button>
 
                 {% endif %}
             {% else %}

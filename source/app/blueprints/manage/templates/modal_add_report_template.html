@@ -59,14 +59,14 @@
 
             {% if report_template.asset_id %}
                 <button type="button" class="btn btn-outline-danger mt-5"
-                onclick="delete_report_template('{{ assettype.asset_id }}');">Delete</button>
+                onclick="delete_report_template('{{ assettype.asset_id }}');" aria-label="Delete report template">Delete</button>
                 <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_report_template">Update</button>
+                id="submit_new_report_template" aria-label="Update report template">Update</button>
 
             {% else %}
 
                 <button type="submit" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_report_template">Save</button>
+                id="submit_new_report_template" aria-label="Save report template">Save</button>
 
             {% endif %}
         </form>

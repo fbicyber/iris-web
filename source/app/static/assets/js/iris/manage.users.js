@@ -163,7 +163,7 @@ function reset_user_mfa(user_id) {
     let users_refresh_mfa_btn = $('#users_refresh_mfa_btn');
     let ori_txt = users_refresh_mfa_btn.text();
     users_refresh_mfa_btn.text('Resetting..');
-    get_request_api('/manage/access-control/reset-mfa/' + user_id)
+    post_request_api('/manage/access-control/reset-mfa/' + user_id)
     .done((data) => {
         notify_auto_api(data);
     }).always(() => {
@@ -216,7 +216,7 @@ function delete_user(id) {
 }
 
 function activate_user(user_id) {
-  get_request_api('/manage/users/activate/' + user_id)
+  post_request_api('/manage/users/activate/' + user_id)
   .done((data) => {
     if(notify_auto_api(data)) {
         user_detail(user_id);
@@ -226,7 +226,7 @@ function activate_user(user_id) {
 }
 
 function deactivate_user(user_id) {
-  get_request_api('/manage/users/deactivate/' + user_id)
+  post_request_api('/manage/users/deactivate/' + user_id)
   .done((data) => {
     if(notify_auto_api(data)) {
         user_detail(user_id);

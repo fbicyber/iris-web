@@ -27,7 +27,8 @@ from flask import url_for
 from flask_login import current_user
 from flask_wtf import FlaskForm
 
-from app import db, app
+from app.extensions import db
+from flask import current_app as app
 from app.datamgmt.manage.manage_srv_settings_db import get_srv_settings, get_server_settings_as_dict
 from app.datamgmt.manage.manage_users_db import get_user
 from app.datamgmt.manage.manage_users_db import get_user_primary_org
@@ -37,6 +38,7 @@ from app.iris_engine.access_control.utils import ac_get_effective_permissions_of
 from app.iris_engine.access_control.utils import ac_recompute_effective_ac
 from app.iris_engine.utils.tracker import track_activity
 from app.models.authorization import Permissions
+from app.models.authorization import hash_api_key
 from app.schema.marshables import UserSchema
 from app.schema.marshables import BasicUserSchema
 from app.util import ac_api_requires
@@ -63,16 +65,19 @@ def user_settings(caseid, url_redir):
     return render_template('profile.html', mfa_enabled=app.config['SERVER_SETTINGS']['enforce_mfa'])
 
 
-@profile_blueprint.route('/user/token/renew', methods=['GET'])
+@profile_blueprint.route('/user/token/renew', methods=['POST'])
 @ac_api_requires()
 def user_renew_api():
 
     user = get_user(current_user.id)
-    user.api_key = secrets.token_urlsafe(nbytes=64)
+    raw_api_key = secrets.token_urlsafe(nbytes=64)
+    user.api_key = hash_api_key(raw_api_key)
 
     db.session.commit()
 
-    return response_success("Token renewed")
+    # The hash just stored is not usable by the caller; return the raw key here, once,
+    # since it cannot be recovered from the database afterward.
+    return response_success("Token renewed", data={"api_key": raw_api_key})
 
 
 @profile_blueprint.route('/user/is-admin', methods=['GET'])
@@ -149,7 +154,7 @@ def update_user_view():
         return response_error(msg="Data error", data=e.messages)
 
 
-@profile_blueprint.route('/user/theme/set/<string:theme>', methods=['GET'])
+@profile_blueprint.route('/user/theme/set/<string:theme>', methods=['POST'])
 @ac_api_requires()
 def profile_set_theme(theme):
     if theme not in ['dark', 'light']:
@@ -165,7 +170,7 @@ def profile_set_theme(theme):
     return response_success('Theme changed')
 
 
-@profile_blueprint.route('/user/deletion-prompt/set/<string:val>', methods=['GET'])
+@profile_blueprint.route('/user/deletion-prompt/set/<string:val>', methods=['POST'])
 @ac_api_requires()
 def profile_set_deletion_prompt(val):
     if val not in ['true', 'false']:
@@ -181,7 +186,7 @@ def profile_set_deletion_prompt(val):
     return response_success('Deletion prompt {}'.format('enabled' if val == 'true' else 'disabled'))
 
 
-@profile_blueprint.route('/user/mini-sidebar/set/<string:val>', methods=['GET'])
+@profile_blueprint.route('/user/mini-sidebar/set/<string:val>', methods=['POST'])
 @ac_api_requires()
 def profile_set_minisidebar(val):
     if val not in ['true', 'false']:

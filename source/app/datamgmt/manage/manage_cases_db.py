@@ -24,7 +24,8 @@ from sqlalchemy import and_, desc, asc
 from sqlalchemy.orm import aliased
 from functools import reduce
 
-from app import db, app
+from app.extensions import db
+from flask import current_app as app
 from app.datamgmt.alerts.alerts_db import search_alert_resolution_by_name
 from app.datamgmt.case.case_db import get_case_tags
 from app.datamgmt.manage.manage_case_state_db import get_case_state_by_name
@@ -338,7 +339,7 @@ def delete_case(case_id):
 
     da = CaseAssets.query.with_entities(CaseAssets.asset_id).filter(CaseAssets.case_id == case_id).all()
     for asset in da:
-        IocAssetLink.query.filter(asset.asset_id == asset.asset_id).delete()
+        IocAssetLink.query.filter(IocAssetLink.asset_id == asset.asset_id).delete()
 
     CaseEventsAssets.query.filter(CaseEventsAssets.case_id == case_id).delete()
     CaseEventsIoc.query.filter(CaseEventsIoc.case_id == case_id).delete()

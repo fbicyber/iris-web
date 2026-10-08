@@ -19,13 +19,14 @@
 # IMPORTS ------------------------------------------------
 from datetime import datetime
 from flask import request
+from flask import current_app
 from flask_login import current_user
 
 import app
-from app import db
+from app.extensions import db
 from app.models import UserActivity
 
-log = app.app.logger
+log = current_app.logger
 
 
 # CONTENT ------------------------------------------------

@@ -97,7 +97,7 @@ def _check_authentication_wrapper(f):
                 if not form.validate():
                     return response_error('Invalid CSRF token')
                 elif request.is_json:
-                    request.json.pop('csrf_token')
+                    request.json.pop('csrf_token', None)
 
         if not is_user_authenticated(request):
             return response_error('Authentication required', status=401)

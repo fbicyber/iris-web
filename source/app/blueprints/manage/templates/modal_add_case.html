@@ -15,9 +15,12 @@
                     {{ form.hidden_tag() }}
 
                     <div class="mt-4">
+                        <span class="text-danger d-block mb-2" data-required-for="case_customer"></span>
                         <div class="input-group mb-4">
                             {{ form.case_customer(class="selectpicker form-control") }}
                         </div>
+                        
+                        <span class="text-danger d-block mb-2" data-required-for="case_name"></span>
                         <div class="input-group mb-4">
                             <div class="input-group-prepend">
                                 <span class="input-group-text">Case name *</span>
@@ -25,18 +28,24 @@
                             {{ form.case_name(class="form-control", type="text") }}
                         </div>
 
+                        <span class="text-danger d-block mb-2" data-required-for="case_template_id"></span>
                         <div class="input-group mb-4">
                             {{ form.case_template_id(class="selectpicker form-control", data_actions_box="true") }}
                         </div>
+                        
+                        <span class="text-danger d-block mb-2" data-required-for="classification_id"></span>
                         <div class="input-group mb-4">
                             {{ form.classification_id(class="selectpicker form-control") }}
                         </div>
+                        
+                        <span class="text-danger d-block mb-2" data-required-for="case_description"></span>
                         <div class="input-group mb-4">
                             <div class="input-group-prepend">
                                 <span class="input-group-text">Short description *</span>
                             </div>
                             {{ form.case_description(class="form-control", type="text") }}
                         </div>
+                        
                         <div class="input-group mb-4">
                             <div class="input-group-prepend">
                                 <span class="input-group-text">SOC ticket ID</span>
@@ -66,7 +75,7 @@
                 {% endif %}
             </div>
             <div class="col-12">
-                <button class="btn btn-outline-success ml-4 mt-5 float-right" id="submit_new_case_btn" onclick="submit_new_case();">Create</button>
+                <button class="btn btn-outline-success ml-4 mt-5 float-right" id="submit_new_case_btn" onclick="submit_new_case();" aria-label="Create case">Create</button>
             </div>
         </div>
 

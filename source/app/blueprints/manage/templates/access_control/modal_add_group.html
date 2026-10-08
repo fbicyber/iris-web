@@ -54,13 +54,13 @@
                                 </div>
                                 {% if group.group_id %}
                                     <button type="button" class="btn btn-danger mt-5"
-                                    onclick="delete_group('{{ group.group_id }}');">Delete</button>
+                                    onclick="delete_group('{{ group.group_id }}');" aria-label="Delete group">Delete</button>
                                     <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                                    id="submit_new_group">Update</button>
+                                    id="submit_new_group" aria-label="Update group">Update</button>
                                 {% else %}
 
                                     <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                                    id="submit_new_group">Save</button>
+                                    id="submit_new_group" aria-label="Save group">Save</button>
 
                                 {% endif %}
                             </form>
@@ -70,10 +70,10 @@
                         <div class="container col-md-12" >
                               <div class="row d-flex">
                                 <div class="col pull-right">
-                                    <button class="btn btn-dark btn-sm pull-right" onclick="refresh_group_members({{ group.group_id }});">
+                                    <button class="btn btn-dark btn-sm pull-right" onclick="refresh_group_members({{ group.group_id }});" aria-label="Refresh group members">
                                         <span class="menu-title">Refresh</span>
                                     </button>
-                                    <button class="btn btn-dark btn-sm pull-right mr-2" onclick="add_members_to_group({{ group.group_id }});">
+                                    <button class="btn btn-dark btn-sm pull-right mr-2" onclick="add_members_to_group({{ group.group_id }});" aria-label="Manage group members">
                                         <span class="menu-title">Manage</span>
                                     </button>
                                 </div>
@@ -107,10 +107,10 @@
                                     {% endif %}
                                 </div>
                                 <div class="col pull-right">
-                                    <button class="btn btn-dark btn-sm pull-right" onclick="refresh_group_cac({{ group.group_id }});">
+                                    <button class="btn btn-dark btn-sm pull-right" onclick="refresh_group_cac({{ group.group_id }});" aria-label="Refresh case access">
                                         <span class="menu-title">Refresh</span>
                                     </button>
-                                    <button class="btn btn-dark btn-sm pull-right mr-2" onclick="manage_group_cac({{ group.group_id }});">
+                                    <button class="btn btn-dark btn-sm pull-right mr-2" onclick="manage_group_cac({{ group.group_id }});" aria-label="Set case access">
                                         <span class="menu-title" id="manage_group_cac_button">Set case access</span>
                                     </button>
                                 </div>

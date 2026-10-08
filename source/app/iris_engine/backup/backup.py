@@ -18,7 +18,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-from app import app
+from flask import current_app as app
 
 log = app.logger
 

@@ -25,17 +25,20 @@ import json
 import jwt
 import logging as log
 import marshmallow
+import os
 import pickle
 import random
 import requests
 import shutil
 import string
+import time
 import traceback
 import uuid
 import weakref
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import hmac
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from flask import Request
 from flask import render_template
 from flask import request
@@ -54,8 +57,9 @@ from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.utils import redirect
 
 from app import TEMPLATE_PATH
-from app import app
-from app import db
+from flask import current_app as app
+from app.extensions import db
+from app import s3
 from app.datamgmt.case.case_db import get_case
 from app.datamgmt.manage.manage_access_control_db import user_has_client_access
 from app.datamgmt.manage.manage_users_db import get_user
@@ -91,6 +95,17 @@ def response_error(msg, data=None, status=400):
 def response_success(msg='', data=None):
     rsp = {
         "status": "success",
+        "message": msg,
+        "data": data if data is not None else []
+    }
+    return app.response_class(response=json.dumps(rsp, cls=AlchemyEncoder),
+                              status=200,
+                              mimetype='application/json')
+
+
+def response_warning(msg='', data=None):
+    rsp = {
+        "status": "warning",
         "message": msg,
         "data": data if data is not None else []
     }
@@ -242,7 +257,10 @@ def _set_caseid_from_current_user():
     redir = False
     if current_user.ctx_case is None:
         redir = True
-        current_user.ctx_case = 1
+        case = Cases.query.order_by(Cases.case_id).first()
+        current_user.ctx_case = case.case_id if case else 1
+        current_user.ctx_human_case = case.name if case else None
+        db.session.commit()
     caseid = current_user.ctx_case
     return redir, caseid, True
 
@@ -391,15 +409,54 @@ def _authenticate_with_email(user_email):
     return True
 
 
+def _verify_oidc_jwt_signature(authentication_token: str):
+    """Verify the signature of an OIDC JWT against the configured JWKS and return the
+    email claim if valid, or None otherwise. Used to authenticate the bearer of the
+    token rather than trusting any client-supplied identity header.
+    """
+    if not authentication_token:
+        log.error("No token provided for signature verification")
+        return None
+
+    try:
+        jwks_client = PyJWKClient(app.config.get("AUTHENTICATION_JWKS_URL"))
+        signing_key = jwks_client.get_signing_key_from_jwt(authentication_token)
+
+        try:
+
+            data = jwt.decode(
+                authentication_token,
+                signing_key.key,
+                algorithms=["RS256"],
+                audience=app.config.get("AUTHENTICATION_AUDIENCE"),
+                options={"verify_exp": app.config.get("AUTHENTICATION_VERIFY_TOKEN_EXP")},
+            )
+
+        except jwt.ExpiredSignatureError:
+            log.error("Provided token has expired")
+            return None
+
+    except Exception as e:
+        log.error(f"Error decoding JWT. {e.__str__()}")
+        return None
+
+    return data.get("sub")
+
+
 def _oidc_proxy_authentication_process(incoming_request: Request):
     # Get the OIDC JWT authentication token from the request header
     authentication_token = incoming_request.headers.get('X-Forwarded-Access-Token', '')
 
     if app.config.get("AUTHENTICATION_TOKEN_VERIFY_MODE") == 'lazy':
-        user_email = incoming_request.headers.get('X-Email')
+        # Do not trust the client-suppliable X-Email header on its own: it can be set by
+        # any client reaching the application and carries no proof of identity. The email
+        # is only accepted once the accompanying token's signature has been verified.
+        user_email = _verify_oidc_jwt_signature(authentication_token)
 
         if user_email:
-            return _authenticate_with_email(user_email.split(',')[0])
+            return _authenticate_with_email(user_email)
+
+        return False
 
     elif app.config.get("AUTHENTICATION_TOKEN_VERIFY_MODE") == 'introspection':
         # Use the authentication server's token introspection endpoint in order to determine if the request is valid /
@@ -428,30 +485,9 @@ def _oidc_proxy_authentication_process(incoming_request: Request):
     elif app.config.get("AUTHENTICATION_TOKEN_VERIFY_MODE") == 'signature':
         # Use the JWKS urls provided by the OIDC discovery to fetch the signing keys
         # and check the signature of the token
-        try:
-            jwks_client = PyJWKClient(app.config.get("AUTHENTICATION_JWKS_URL"))
-            signing_key = jwks_client.get_signing_key_from_jwt(authentication_token)
-
-            try:
-
-                data = jwt.decode(
-                    authentication_token,
-                    signing_key.key,
-                    algorithms=["RS256"],
-                    audience=app.config.get("AUTHENTICATION_AUDIENCE"),
-                    options={"verify_exp": app.config.get("AUTHENTICATION_VERIFY_TOKEN_EXP")},
-                )
-
-            except jwt.ExpiredSignatureError:
-                log.error("Provided token has expired")
-                return False
-
-        except Exception as e:
-            log.error(f"Error decoding JWT. {e.__str__()}")
+        user_email = _verify_oidc_jwt_signature(authentication_token)
+        if not user_email:
             return False
-
-        # Extract the user email
-        user_email = data.get("sub")
 
         return _authenticate_with_email(user_email)
 
@@ -515,7 +551,7 @@ def api_login_required(f):
                 if not form.validate():
                     return response_error('Invalid CSRF token')
                 elif request.is_json:
-                    request.json.pop('csrf_token')
+                    request.json.pop('csrf_token', None)
 
         if not is_user_authenticated(request):
             return response_error("Authentication required", status=401)
@@ -571,10 +607,29 @@ def ac_case_requires(*access_level):
     return inner_wrap
 
 
+def ac_socket_requires_authenticated():
+    """Like ac_socket_requires, but for socket events that carry no case-scoped channel
+    (e.g. server-wide update status) - only authentication is required, not case access.
+    """
+    def inner_wrap(f):
+        @wraps(f)
+        def wrap(*args, **kwargs):
+            if not is_user_authenticated(request):
+                return ac_return_access_denied()
+
+            return f(*args, **kwargs)
+
+        return wrap
+    return inner_wrap
+
+
 def ac_socket_requires(*access_level):
     def inner_wrap(f):
         @wraps(f)
         def wrap(*args, **kwargs):
+            if not args or not isinstance(args[0], dict):
+                return f(*args, **kwargs)
+
             if not is_user_authenticated(request):
                 return redirect(not_authenticated_redirection_url(request.full_path))
 
@@ -596,6 +651,11 @@ def ac_socket_requires(*access_level):
 
 
 def _user_has_required_permissions(permissions):
+    # Always recompute rather than trusting whatever was cached at login: group/role
+    # changes and admin-initiated revocations must take effect on the very next request,
+    # not only once the session cookie eventually expires (CWE-613).
+    session['permissions'] = ac_get_effective_permissions_of_user(current_user)
+
     if not permissions:
         return True
 
@@ -643,7 +703,7 @@ def ac_api_case_requires(*access_level):
                     if not form.validate():
                         return response_error('Invalid CSRF token')
                     elif request.is_json:
-                        request.json.pop('csrf_token')
+                        request.json.pop('csrf_token', None)
 
             if not is_user_authenticated(request):
                 return response_error("Authentication required", status=401)
@@ -733,13 +793,10 @@ def ac_api_requires(*permissions):
                     if not form.validate():
                         return response_error('Invalid CSRF token')
                     elif request.is_json:
-                        request.json.pop('csrf_token')
+                        request.json.pop('csrf_token', None)
 
             if not is_user_authenticated(request):
                 return response_error("Authentication required", status=401)
-
-            if 'permissions' not in session:
-                session['permissions'] = ac_get_effective_permissions_of_user(current_user)
 
             if not _user_has_required_permissions(permissions):
                 return response_error('Permission denied', status=403)
@@ -836,8 +893,25 @@ def format_datetime(value, frmt):
     return datetime.datetime.fromtimestamp(float(value)).strftime(frmt)
 
 
+def _get_module_hook_hmac_key():
+    """Derive the key used to authenticate pickled module-hook task payloads.
+
+    Deliberately distinct from the raw SECRET_KEY value (via HKDF with a fixed,
+    purpose-specific info string) so this key cannot be confused with, or reused
+    against, the key Flask uses to sign session cookies.
+    """
+    secret_key = bytes(app.config.get("SECRET_KEY"), "utf-8")
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"iris-module-hook-task-hmac-v1",
+    )
+    return hkdf.derive(secret_key)
+
+
 def hmac_sign(data):
-    key = bytes(app.config.get("SECRET_KEY"), "utf-8")
+    key = _get_module_hook_hmac_key()
     h = hmac.HMAC(key, hashes.SHA256())
     h.update(data)
     signature = base64.b64encode(h.finalize())
@@ -847,7 +921,7 @@ def hmac_sign(data):
 
 def hmac_verify(signature_enc, data):
     signature = base64.b64decode(signature_enc)
-    key = bytes(app.config.get("SECRET_KEY"), "utf-8")
+    key = _get_module_hook_hmac_key()
     h = hmac.HMAC(key, hashes.SHA256())
     h.update(data)
 
@@ -879,7 +953,7 @@ def assert_type_mml(input_var: any, field_name: str,  type: type, allow_none: bo
                                             field_name=field_name if field_name else "type")
         else:
             return True
-    
+
     if isinstance(input_var, type):
         if max_len:
             if len(input_var) > max_len:
@@ -897,7 +971,7 @@ def assert_type_mml(input_var: any, field_name: str,  type: type, allow_none: bo
                                                 field_name=field_name if field_name else "type")
 
         return True
-    
+
     try:
 
         if isinstance(type(input_var), type):
@@ -906,6 +980,53 @@ def assert_type_mml(input_var: any, field_name: str,  type: type, allow_none: bo
     except Exception as e:
         log.error(e)
         print(e)
-        
+
     raise marshmallow.ValidationError("Invalid data type",
                                       field_name=field_name if field_name else "type")
+
+def ensure_bucket(bucket_name):
+    try:
+        s3.create_bucket(Bucket=bucket_name)
+        log.info(f"Bucket {bucket_name} created.")
+    except s3.exceptions.BucketAlreadyOwnedByYou:
+
+        log.info(f"Bucket {bucket_name} already exists.")
+
+
+def upload_file(fpath, bucket_name, filename):
+    log.info(f"Uploading file {fpath} to bucket {bucket_name} with filename {filename}")
+    prefix, ext = os.path.splitext(filename)
+    log.info(f"Prefix: {prefix}, ext: {ext}")
+    resp = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+    log.info(f"List objects response: {resp}")
+    objects = resp.get('Contents', [])
+    log.info(f"Objects in bucket with prefix {prefix}: {objects}")
+    duplicates = [obj for obj in objects if obj['Key'].endswith(ext)]
+    log.info(f"Found {len(duplicates)} duplicates for prefix {prefix} and extension {ext}")
+    target_key = filename if len(duplicates) == 0 else f"{prefix}.{len(duplicates)}{ext}"
+
+    try:
+        file_size = os.path.getsize(fpath)
+        start = time.time()
+        log.info(
+            f"Starting put_object for local file {fpath} ({file_size} bytes) "
+            f"to bucket {bucket_name} with key {target_key}"
+        )
+
+        with open(fpath, "rb") as fobj:
+            s3.put_object(Bucket=bucket_name, Key=target_key, Body=fobj)
+
+        elapsed = time.time() - start
+        log.info(f"put_object completed in {elapsed:.2f}s for key {target_key}")
+
+        if target_key == filename:
+            log.info(f"File {filename} uploaded successfully to bucket {bucket_name}")
+        else:
+            log.info(f"File {filename} already exists in bucket {bucket_name}. Uploaded as {target_key}")
+    except Exception as e:
+        log.exception(
+            f"S3 upload failed for local file {fpath}, bucket {bucket_name}, key {target_key}. "
+            f"Error type: {type(e).__name__}"
+        )
+        raise
+

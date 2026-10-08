@@ -20,7 +20,7 @@ from datetime import datetime
 from flask_login import current_user
 from sqlalchemy import and_
 
-from app import db
+from app.extensions import db
 from app.models import ObjectState
 
 

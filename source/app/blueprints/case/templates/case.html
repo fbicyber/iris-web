@@ -38,10 +38,11 @@
                             </div>
                                 <div class="col mt-auto">
                                 <div class="row">
-                                    {% if case.severity %}<span onclick="case_detail('{{ case.case_id }}', true);" class="btn btn-rounded badge-pill hidden-caret btn-sm ml-2 mb-2 ml-auto {% if case.severity.severity_id > 4 %} badge-danger {% elif case.severity.severity_id == 4 %} bg-warning-gradient text-dark {% else %} btn-light {% endif %} ml-2" title="Case severity"><i class="fa-solid fa-bolt mr-1"></i> {{ case.severity.severity_name }}</span>{% endif %}
-                                     <span title="Case outcome" class="float-right btn btn-rounded badge-pill hidden-caret btn-sm ml-2 mb-2 {% if case.status_id == 1%}badge-success{% elif case.status_id == 2 %}badge-danger{% else %}btn-light{% endif %}"
-                                        onclick="case_detail('{{ case.case_id }}', true);"
-                                     ><i class="fa-solid fa-group-arrows-rotate mr-2"></i>{{ case.status_name }}</span>
+                                    {% if case.severity %}<span onclick="case_detail('{{ case.case_id }}', true);" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); case_detail('{{ case.case_id }}', true); }" role="button" tabindex="0" aria-label="Edit case severity: {{ case.severity.severity_name }}" class="btn btn-rounded badge-pill hidden-caret btn-sm ml-2 mb-2 ml-auto {% if case.severity.severity_id > 4 %} badge-danger {% elif case.severity.severity_id == 4 %} bg-warning-gradient text-dark {% else %} btn-light {% endif %} ml-2" title="Case severity"><i class="fa-solid fa-bolt mr-1"></i> {{ case.severity.severity_name }}</span>{% endif %}
+                                     <span title="Case outcome" role="button" tabindex="0" aria-label="Edit case outcome: {{ case.status_name }}" class="float-right btn btn-rounded badge-pill hidden-caret btn-sm ml-2 mb-2 {% if case.status_id == 1%}badge-success{% elif case.status_id == 2 %}badge-danger{% else %}btn-light{% endif %}"
+                                         onclick="case_detail('{{ case.case_id }}', true);"
+                                         onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); case_detail('{{ case.case_id }}', true); }"
+                                      ><i class="fa-solid fa-group-arrows-rotate mr-2"></i>{{ case.status_name }}</span>
                                 </div>
                                 <div class="row">
                                       <div class="ml-auto">
@@ -61,8 +62,8 @@
 
                         <div class="ml-2 col">
                             <div class="row ml-1">
-                                {% if case.state %}<h5 title="Case state" onclick="case_detail('{{ case.case_id }}', true);" style="cursor:pointer;"><span class="btn-rounded badge-pill hidden-caret btn-sm btn-light" title="Case state"><i class="fa-solid fa-business-time  mr-1"></i> {{ case.state.state_name }}</span></h5>{% endif %}
-                                {% if case.classification %}<h5 title="Classification" onclick="case_detail('{{ case.case_id }}', true);" style="cursor:pointer;"><span class="btn-rounded badge-pill hidden-caret btn-sm btn-light ml-2"><i class="fa-solid fa-shield-virus mr-1"></i>{{ case.classification.name_expanded }}</span></h5>{% endif %}
+                                {% if case.state %}<h5 title="Case state" onclick="case_detail('{{ case.case_id }}', true);" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); case_detail('{{ case.case_id }}', true); }" role="button" tabindex="0" aria-label="Edit case state: {{ case.state.state_name }}" style="cursor:pointer;"><span class="btn-rounded badge-pill hidden-caret btn-sm btn-light" title="Case state"><i class="fa-solid fa-business-time  mr-1"></i> {{ case.state.state_name }}</span></h5>{% endif %}
+                                {% if case.classification %}<h5 title="Classification" onclick="case_detail('{{ case.case_id }}', true);" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); case_detail('{{ case.case_id }}', true); }" role="button" tabindex="0" aria-label="Edit case classification: {{ case.classification.name_expanded }}" style="cursor:pointer;"><span class="btn-rounded badge-pill hidden-caret btn-sm btn-light ml-2"><i class="fa-solid fa-shield-virus mr-1"></i>{{ case.classification.name_expanded }}</span></h5>{% endif %}
                                 {% if case.alerts| length > 0 %}<h5 title="Alerts"><a class="btn-rounded badge-pill hidden-caret btn-sm btn-dark ml-2 bg-warning-gradient text-dark" href="/alerts?cid={{ case.case_id }}&sort=desc&case_id={{ case.case_id }}" target="_blank" rel="noopener"><i class="fa-solid fa-bell mr-1"></i> {{ case.alerts| length }} related alerts</a></h5>{% endif %}
                                 {% if case.review_status.status_name == "Reviewed" %}
                                 <h5 title="Reviewed"> <a class="text-white btn-rounded badge-pill hidden-caret btn-sm ml-2 badge-success"><i class="fa-regular fa-circle-check mr-2"></i>Case reviewed by {% if case.reviewer.id == current_user.id %} you {% else %} {{ case.reviewer.name }} {% endif %}</a></h5>
@@ -121,10 +122,10 @@
                                         <h4 class="m-0 font-weight-bold">Case summary {{ "(Syncing with DB )" if case.id }}</h4>
                                     </a>
                                     <div class="mr-0 float-right">
-                                        <small id="content_typing" class="mr-3 mt-1"></small>
-                                        <small id="content_last_saved_by" class="mr-3 mt-1"></small>
-                                        <span id="last_saved" class="badge mr-3 ml-2"></span>
-                                        <small id="content_last_sync"></small>
+                                        <small id="content_typing" class="mr-3 mt-1" aria-live="polite"></small>
+                                        <small id="content_last_saved_by" class="mr-3 mt-1" aria-live="polite"></small>
+                                        <span id="last_saved" class="badge mr-3 ml-2" role="status" aria-live="polite"></span>
+                                        <small id="content_last_sync" aria-live="polite"></small>
                                         <button class="btn btn-sm mr-2 ml-3" onclick="edit_case_summary();" id="sum_edit_btn" >Edit</button>
                                         <button type="button" id="sum_refresh_btn" class="btn btn-sm btn-outline-default mr-3" onclick="sync_editor();">
                                             Refresh
@@ -136,23 +137,23 @@
                                 <div class="card-body">
                                    <div class="row mb-1">
                                         <div class="col" id="summary_edition_btn" style="display:none;">
-                                                <div class="btn btn-sm btn-light mr-1 " title="CTRL-B" onclick="editor.insertSnippet('**${1:$SELECTION}**');editor.focus();"><i class="fa-solid fa-bold"></i></div>
-                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-I" onclick="editor.insertSnippet('*${1:$SELECTION}*');editor.focus();"><i class="fa-solid fa-italic"></i></div>
-                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-1" onclick="editor.insertSnippet('# ${1:$SELECTION}');editor.focus();">H1</div>
-                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-2" onclick="editor.insertSnippet('## ${1:$SELECTION}');editor.focus();">H2</div>
-                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-3" onclick="editor.insertSnippet('### ${1:$SELECTION}');editor.focus();">H3</div>
-                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-4" onclick="editor.insertSnippet('#### ${1:$SELECTION}');editor.focus();">H4</div>
-                                                <div class="btn btn-sm btn-light mr-1" title="Insert code" onclick="editor.insertSnippet('```${1:$SELECTION}```');editor.focus();"><i class="fa-solid fa-code"></i></div>
-                                                <div class="btn btn-sm btn-light mr-1" title="Insert link" onclick="editor.insertSnippet('[${1:$SELECTION}](url)');editor.focus();"><i class="fa-solid fa-link"></i></div>
-                                                <div class="btn btn-sm btn-light mr-1" title="Insert table" onclick="editor.insertSnippet('|\t|\t|\t|\n|--|--|--|\n|\t|\t|\t|\n|\t|\t|\t|');editor.focus();"><i class="fa-solid fa-table"></i></div>
-                                                <div class="btn btn-sm btn-light mr-1" title="Insert bullet list" onclick="editor.insertSnippet('\n- \n- \n- ');editor.focus();"><i class="fa-solid fa-list"></i></div>
-                                                <div class="btn btn-sm btn-light mr-1" title="Insert numbered list" onclick="editor.insertSnippet('\n1. a  \n2. b  \n3. c  ');editor.focus();"><i class="fa-solid fa-list-ol"></i></div>
+                                                <div class="btn btn-sm btn-light mr-1 " title="CTRL-B" role="button" tabindex="0" aria-label="Bold" onclick="editor.insertSnippet('**${1:$SELECTION}**');editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); editor.insertSnippet('**${1:$SELECTION}**');editor.focus(); }"><i class="fa-solid fa-bold"></i></div>
+                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-I" role="button" tabindex="0" aria-label="Italic" onclick="editor.insertSnippet('*${1:$SELECTION}*');editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); editor.insertSnippet('*${1:$SELECTION}*');editor.focus(); }"><i class="fa-solid fa-italic"></i></div>
+                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-1" role="button" tabindex="0" aria-label="Insert heading level 1" onclick="editor.insertSnippet('# ${1:$SELECTION}');editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); editor.insertSnippet('# ${1:$SELECTION}');editor.focus(); }">H1</div>
+                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-2" role="button" tabindex="0" aria-label="Insert heading level 2" onclick="editor.insertSnippet('## ${1:$SELECTION}');editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); editor.insertSnippet('## ${1:$SELECTION}');editor.focus(); }">H2</div>
+                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-3" role="button" tabindex="0" aria-label="Insert heading level 3" onclick="editor.insertSnippet('### ${1:$SELECTION}');editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); editor.insertSnippet('### ${1:$SELECTION}');editor.focus(); }">H3</div>
+                                                <div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-4" role="button" tabindex="0" aria-label="Insert heading level 4" onclick="editor.insertSnippet('#### ${1:$SELECTION}');editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); editor.insertSnippet('#### ${1:$SELECTION}');editor.focus(); }">H4</div>
+                                                <div class="btn btn-sm btn-light mr-1" title="Insert code" role="button" tabindex="0" aria-label="Insert code block" onclick="editor.insertSnippet('```${1:$SELECTION}```');editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); editor.insertSnippet('```${1:$SELECTION}```');editor.focus(); }"><i class="fa-solid fa-code"></i></div>
+                                                <div class="btn btn-sm btn-light mr-1" title="Insert link" role="button" tabindex="0" aria-label="Insert link" onclick="editor.insertSnippet('[${1:$SELECTION}](url)');editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); editor.insertSnippet('[${1:$SELECTION}](url)');editor.focus(); }"><i class="fa-solid fa-link"></i></div>
+                                                <div class="btn btn-sm btn-light mr-1" title="Insert table" role="button" tabindex="0" aria-label="Insert table" onclick="editor.insertSnippet('|\t|\t|\t|\n|--|--|--|\n|\t|\t|\t|\n|\t|\t|\t|');editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); editor.insertSnippet('|\t|\t|\t|\n|--|--|--|\n|\t|\t|\t|\n|\t|\t|\t|');editor.focus(); }"><i class="fa-solid fa-table"></i></div>
+                                                <div class="btn btn-sm btn-light mr-1" title="Insert bullet list" role="button" tabindex="0" aria-label="Insert bullet list" onclick="insert_list_in_editor(editor, 'bullet');" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); insert_list_in_editor(editor, 'bullet'); }"><i class="fa-solid fa-list"></i></div>
+                                                <div class="btn btn-sm btn-light mr-1" title="Insert numbered list" role="button" tabindex="0" aria-label="Insert numbered list" onclick="insert_list_in_editor(editor, 'numbered');" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); insert_list_in_editor(editor, 'numbered'); }"><i class="fa-solid fa-list-ol"></i></div>
                                         </div>
                                     </div>
                                     <div class="row">
                                         <div class="col-md-6" id="container_editor_summary">
                                             <div style="display: none" id="fetched_crc"></div>
-                                            <div id="editor_summary" contenteditable="true" spellcheck="true" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}"></div>
+                                            <div id="editor_summary" contenteditable="true" spellcheck="true" role="textbox" aria-label="Case summary editor" aria-multiline="true" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}"></div>
                                             <textarea id="case_summary" rows="10" cols="82" style="display: none"></textarea>
                                         </div>
                                         <div class="col-md-6" id="ctrd_casesum">
@@ -165,11 +166,11 @@
                     </div>
                 </div>
             </div>
-            <div class="modal " tabindex="-1" role="dialog" id="modal_select_report" data-backdrop="true">
+            <div class="modal " tabindex="-1" role="dialog" aria-labelledby="modal_select_report_title" id="modal_select_report" data-backdrop="true">
                 <div class="modal-lg modal-dialog" role="document">
                   <div class="modal-content">
                       <div class="modal-header">
-                      <h5>Select report template</h5>
+                      <h5 id="modal_select_report_title">Select report template</h5>
                       <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
                             aria-hidden="true">&times;</span></button>
                       </div>
@@ -208,11 +209,11 @@
                   </div><!-- /.modal-content -->
                 </div><!-- /.modal-dialog -->
             </div>
-            <div class="modal " tabindex="-1" role="dialog" id="modal_select_report_act" data-backdrop="true">
+            <div class="modal " tabindex="-1" role="dialog" aria-labelledby="modal_select_report_act_title" id="modal_select_report_act" data-backdrop="true">
                 <div class="modal-lg modal-dialog" role="document">
                   <div class="modal-content">
                       <div class="modal-header">
-                      <h5>Select activity report template</h5>
+                      <h5 id="modal_select_report_act_title">Select activity report template</h5>
                       <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
                             aria-hidden="true">&times;</span></button>
                       </div>
@@ -252,12 +253,44 @@
                   </div><!-- /.modal-content -->
                 </div><!-- /.modal-dialog -->
             </div>
-            <div class="modal " tabindex="-1" role="dialog" id="modal_choose_reviewer" data-backdrop="true">
+            <div class="modal " tabindex="-1" role="dialog" aria-labelledby="modal_view_reports_title" id="modal_view_reports" data-backdrop="true">
+                <div class="modal-lg modal-dialog" role="document">
+                  <div class="modal-content">
+                      <div class="modal-header">
+                      <h5 id="modal_view_reports_title">Report Downloads</h5>
+                      <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                            aria-hidden="true">&times;</span></button>
+                      </div>
+                      <div class="modal-body">
+                          <div class="table-responsive">
+                              <table class="table table-striped table-hover" id="reports_downloads_table">
+                                  <thead>
+                                      <tr>
+                                          <th>Filename</th>
+                                          <th>Date</th>
+                                          <th>Size</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody id="reports_downloads_body">
+                                      <tr>
+                                          <td colspan="3">Loading...</td>
+                                      </tr>
+                                  </tbody>
+                              </table>
+                          </div>
+                      </div>
+                      <div class="modal-footer">
+                          <button type="button" class="btn btn-outline-dark" data-dismiss="modal">Close</button>
+                      </div>
+                  </div><!-- /.modal-content -->
+                </div><!-- /.modal-dialog -->
+            </div>
+            <div class="modal " tabindex="-1" role="dialog" aria-labelledby="modal_choose_reviewer_title" id="modal_choose_reviewer" data-backdrop="true">
               <div class="modal-lg modal-dialog" role="document">
                   <div class="modal-content">
                     <form method="post" action="" id="form_choose_reviewer">
                           <div class="modal-header">
-                          <h5>Choose reviewer</h5>
+                          <h5 id="modal_choose_reviewer_title">Choose reviewer</h5>
                           <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
                                 aria-hidden="true">&times;</span></button>
                           </div>
@@ -265,6 +298,7 @@
                               <div class="row mb-2">
                                   <div class="col-12">
                                       <div class="form-group">
+                                        <label for="reviewer_id" class="sr-only">Reviewer</label>
                                         <select class="selectpicker form-control" data-dropup-auto="false" data-live-search="true" id="reviewer_id">
                                         </select>
                                       </div>
@@ -281,7 +315,7 @@
                   </div><!-- /.modal-content -->
               </div><!-- /.modal-dialog -->
             </div>
-            <div class="modal" tabindex="-1" role="dialog" id="modal_case_detail" data-backdrop="true">
+            <div class="modal" tabindex="-1" role="dialog" aria-label="Case details" id="modal_case_detail" data-backdrop="true">
                 <div class="modal-xl modal-dialog" role="document">
                     <div class="modal-content" id="info_case_modal_content">
 
@@ -324,6 +358,7 @@
 <script src="/static/assets/js/plugin/ace/src-noconflict/ace.js" type="text/javascript" charset="utf-8"></script>
 <script src="/static/assets/js/plugin/ace/src-noconflict/ext-language_tools.js" type="text/javascript" charset="utf-8"></script>
 <script src="/static/assets/js/core/socket.io.js"></script>
+<script src="/static/assets/js/iris/socket.manager.js"></script>
 <script src="/static/assets/js/plugin/select/select2.js"></script>
 
 <script src="/static/assets/js/plugin/showdown/showdown.min.js"></script>

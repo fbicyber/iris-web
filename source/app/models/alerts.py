@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
-from app import db
+from app.extensions import db
 from app.models import Base, alert_assets_association, alert_iocs_association
 from app.models.cases import Cases
 
@@ -30,22 +30,22 @@ class Alert(db.Model):
     alert_id = Column(BigInteger, primary_key=True)
     alert_uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, nullable=False,
                         server_default=text('gen_random_uuid()'), unique=True)
-    alert_title = Column(Text, nullable=False)
+    alert_title = Column(Text, nullable=False, index=True)
     alert_description = Column(Text)
     alert_source = Column(Text)
-    alert_source_ref = Column(Text)
+    alert_source_ref = Column(Text, index=True)
     alert_source_link = Column(Text)
     alert_source_content = Column(JSON)
     alert_severity_id = Column(ForeignKey('severities.severity_id'), nullable=False)
     alert_status_id = Column(ForeignKey('alert_status.status_id'), nullable=False)
     alert_context = Column(JSON)
-    alert_source_event_time = Column(DateTime, nullable=False, server_default=text("now()"))
-    alert_creation_time = Column(DateTime, nullable=False, server_default=text("now()"))
+    alert_source_event_time = Column(DateTime, nullable=False, server_default=text("now()"), index=True)
+    alert_creation_time = Column(DateTime, nullable=False, server_default=text("now()"), index=True)
     alert_note = Column(Text)
     alert_tags = Column(Text)
-    alert_owner_id = Column(ForeignKey('user.id'))
+    alert_owner_id = Column(ForeignKey('users.id'))
     modification_history = Column(JSON)
-    alert_customer_id = Column(ForeignKey('client.client_id'), nullable=False)
+    alert_customer_id = Column(ForeignKey('client.client_id'), nullable=False, index=True)
     alert_classification_id = Column(ForeignKey('case_classification.id'))
     alert_resolution_status_id = Column(ForeignKey('alert_resolution_status.resolution_status_id'), nullable=True)
 

@@ -39,9 +39,9 @@ from sqlalchemy.orm import aliased
 from typing import Any, Dict, List, Optional, Tuple, Union
 from werkzeug.datastructures import FileStorage
 
-from app import app
-from app import db
-from app import ma
+from flask import current_app as app
+from app.extensions import db
+from app.extensions import ma
 from app.datamgmt.datastore.datastore_db import datastore_get_standard_path
 from app.datamgmt.manage.manage_attribute_db import merge_custom_attributes
 from app.datamgmt.manage.manage_tags_db import add_db_tag
@@ -165,21 +165,32 @@ class CaseNoteDirectorySchema(ma.SQLAlchemyAutoSchema):
 
     def verify_parent_id(self, parent_id, case_id, current_id=None):
 
-        if current_id is not None and int(parent_id) == int(current_id):
-            raise marshmallow.exceptions.ValidationError("Invalid parent id for the directory",
-                                                         field_name="parent_id")
         directory = NoteDirectory.query.filter(
             NoteDirectory.id == parent_id,
             NoteDirectory.case_id == case_id
         ).first()
-        if directory:
-            if current_id is not None and directory.parent_id == int(current_id):
-                raise marshmallow.exceptions.ValidationError("Invalid parent id for the directory",
-                                                             field_name="parent_id")
-            return parent_id
+        if not directory:
+            raise marshmallow.exceptions.ValidationError("Invalid parent id for the directory",
+                                                         field_name="parent_id")
 
-        raise marshmallow.exceptions.ValidationError("Invalid parent id for the directory",
-                                                     field_name="parent_id")
+        if current_id is not None:
+            # Walk the full ancestor chain from the proposed parent and reject if the
+            # directory being updated appears anywhere in it - a cycle of any length,
+            # not just itself or its immediate parent.
+            visited = set()
+            ancestor_id = int(parent_id)
+            while ancestor_id is not None and ancestor_id not in visited:
+                if ancestor_id == int(current_id):
+                    raise marshmallow.exceptions.ValidationError("Invalid parent id for the directory",
+                                                                 field_name="parent_id")
+                visited.add(ancestor_id)
+                ancestor = NoteDirectory.query.filter(
+                    NoteDirectory.id == ancestor_id,
+                    NoteDirectory.case_id == case_id
+                ).with_entities(NoteDirectory.parent_id).first()
+                ancestor_id = ancestor[0] if ancestor else None
+
+        return parent_id
 
     @pre_load
     def verify_directory_name(self, data: Dict[str, Any], **kwargs: Any) -> Dict[str, Any]:
@@ -1071,8 +1082,11 @@ class EventSchema(ma.SQLAlchemyAutoSchema):
     event_iocs: List[int] = fields.List(fields.Integer, required=True, allow_none=False)
     event_date: datetime = fields.DateTime("%Y-%m-%dT%H:%M:%S.%f", required=True, allow_none=False)
     event_tz: str = fields.String(required=True, allow_none=False)
+    event_end_date: datetime = fields.DateTime("%Y-%m-%dT%H:%M:%S.%f", required=False, allow_none=True)
+    event_end_tz: str = fields.String(required=False, allow_none=True)
     event_category_id: int = fields.Integer(required=True, allow_none=False)
     event_date_wtz: datetime = fields.DateTime("%Y-%m-%dT%H:%M:%S.%f", required=False, allow_none=False)
+    event_end_date_wtz: datetime = fields.DateTime("%Y-%m-%dT%H:%M:%S.%f", required=False, allow_none=True)
     modification_history: str = auto_field('modification_history', required=False, readonly=True)
     event_comments_map: List[int] = fields.List(fields.Integer, required=False, allow_none=True)
     event_sync_iocs_assets: bool = fields.Boolean(required=False)
@@ -1111,6 +1125,19 @@ class EventSchema(ma.SQLAlchemyAutoSchema):
             raise marshmallow.exceptions.ValidationError("Invalid date time", field_name="event_date")
 
         return self.event_date, self.event_date_wtz
+
+    def validate_end_date(self, event_end_date: str, event_end_tz: str):
+        """Validates the end date and time of the event."""
+        date_time = "{}{}".format(event_end_date, event_end_tz)
+        date_time_wtz = "{}".format(event_end_date)
+
+        try:
+            end_date = dateutil.parser.isoparse(date_time)
+            end_date_wtz = dateutil.parser.isoparse(date_time_wtz)
+        except Exception:
+            raise marshmallow.exceptions.ValidationError("Invalid end date time", field_name="event_end_date")
+
+        return end_date, end_date_wtz
 
     @pre_load
     def verify_data(self, data: Dict[str, Any], **kwargs: Any) -> Dict[str, Any]:
@@ -1174,7 +1201,9 @@ class EventSchema(ma.SQLAlchemyAutoSchema):
                 raise marshmallow.exceptions.ValidationError("Invalid IOC ID", field_name="event_assets")
 
         if data.get('event_color') and data.get('event_color') not in ['#fff', '#1572E899', '#6861CE99', '#48ABF799',
-                                                                       '#31CE3699', '#F2596199', '#FFAD4699']:
+                                                                       '#31CE3699', '#F2596199', '#FFAD4699',
+                                                                       '#94A3B8', '#B5BCFF', '#14B8A6',
+                                                                       '#FACC15', '#912136']:
             data['event_color'] = ''
 
         if data.get('event_tags'):
@@ -1183,6 +1212,12 @@ class EventSchema(ma.SQLAlchemyAutoSchema):
                     raise marshmallow.exceptions.ValidationError("All items in list must be strings",
                                                                  field_name="event_tags")
                 add_db_tag(tag.strip())
+
+        if data.get('event_end_date') in [None, ""]:
+            data['event_end_date'] = None
+            data['event_end_tz'] = None
+        elif data.get('event_end_date') and not data.get('event_end_tz'):
+            raise marshmallow.exceptions.ValidationError("Missing field event_end_tz", field_name="event_end_tz")
 
         return data
 
@@ -1269,7 +1304,13 @@ class DSFileSchema(ma.SQLAlchemyAutoSchema):
             filename = filename.rstrip().replace('\t', '').replace('\n', '').replace('\r', '')
             file_hash = stream_sha256sum(file_content)
 
-            dsf = DataStoreFile.query.filter(DataStoreFile.file_sha256 == file_hash).first()
+            # Scope the dedup lookup to this case: matching on hash alone, platform-wide,
+            # would let a caller confirm whether specific file content exists in any other
+            # case or customer, defeating case compartmentalization (CWE-203).
+            dsf = DataStoreFile.query.filter(
+                DataStoreFile.file_sha256 == file_hash,
+                DataStoreFile.file_case_id == cid
+            ).first()
             if dsf:
                 exists = True
 
@@ -2096,7 +2137,7 @@ class BasicUserSchema(ma.SQLAlchemyAutoSchema):
     user_name: str = auto_field('name', required=True, validate=Length(min=2))
     user_login: str = auto_field('user', required=True, validate=Length(min=2))
     user_email: str = auto_field('email', required=True, validate=Length(min=2))
-    has_deletion_confirmation: Optional[bool] = auto_field('has_deletion_confirmation', required=False, default=False)
+    has_deletion_confirmation: Optional[bool] = auto_field('has_deletion_confirmation', required=False, default=True)
 
     class Meta:
         model = User
@@ -2364,6 +2405,7 @@ class CaseDetailsSchema(ma.SQLAlchemyAutoSchema):
 
     def get_protagonists(self, obj):
         cp = CaseProtagonist.query.with_entities(
+            CaseProtagonist.id,
             CaseProtagonist.role,
             CaseProtagonist.name,
             CaseProtagonist.contact,

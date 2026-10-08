@@ -19,7 +19,7 @@ from flask import Blueprint, request
 from flask_login import current_user
 from werkzeug import Response
 
-from app import db
+from app.extensions import db
 from app.datamgmt.filters.filters_db import get_filter_by_id
 from app.datamgmt.filters.filters_db import list_filters_by_type
 from app.iris_engine.utils.tracker import track_activity
@@ -80,11 +80,17 @@ def filters_update_route(filter_id) -> Response:
     saved_filter_schema = SavedFilterSchema()
 
     try:
-        data = request.get_json()
-
         saved_filter = get_filter_by_id(filter_id)
         if not saved_filter:
             return response_error('Filter not found')
+
+        if saved_filter.created_by != current_user.id:
+            return response_error('Permission denied', status=403)
+
+        data = request.get_json()
+        # Ownership is immutable via this endpoint - otherwise a caller could reassign
+        # another user's shared filter to themselves.
+        data.pop('created_by', None)
 
         saved_filter_schema.load(data, instance=saved_filter, partial=True)
         db.session.commit()
@@ -114,6 +120,9 @@ def filters_delete_route(filter_id) -> Response:
         saved_filter = get_filter_by_id(filter_id)
         if not saved_filter:
             return response_error('Filter not found')
+
+        if saved_filter.created_by != current_user.id:
+            return response_error('Permission denied', status=403)
 
         db.session.delete(saved_filter)
         db.session.commit()

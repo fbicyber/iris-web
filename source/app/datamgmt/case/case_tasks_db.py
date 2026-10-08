@@ -20,7 +20,7 @@ from datetime import datetime
 from flask_login import current_user
 from sqlalchemy import desc, and_
 
-from app import db
+from app.extensions import db
 from app.datamgmt.manage.manage_attribute_db import get_default_custom_attributes
 from app.datamgmt.manage.manage_users_db import get_users_list_restricted_from_case
 from app.datamgmt.states import update_tasks_state
@@ -229,12 +229,17 @@ def add_task(task, assignee_id_list, user_id, caseid):
     return task
 
 
-def get_case_task_comments(task_id):
+def get_case_task_comments(task_id, caseid):
     return Comments.query.filter(
         TaskComments.comment_task_id == task_id
     ).join(
         TaskComments,
         Comments.comment_id == TaskComments.comment_id
+    ).join(
+        CaseTasks,
+        CaseTasks.id == TaskComments.comment_task_id
+    ).filter(
+        CaseTasks.task_case_id == caseid
     ).order_by(
         Comments.comment_date.asc()
     ).all()
@@ -261,7 +266,7 @@ def get_case_tasks_comments_count(tasks_list):
     ).all()
 
 
-def get_case_task_comment(task_id, comment_id):
+def get_case_task_comment(task_id, comment_id, caseid):
     return TaskComments.query.filter(
         TaskComments.comment_task_id == task_id,
         TaskComments.comment_id == comment_id
@@ -277,6 +282,11 @@ def get_case_task_comment(task_id, comment_id):
         TaskComments.comment
     ).join(
         Comments.user
+    ).join(
+        CaseTasks,
+        CaseTasks.id == TaskComments.comment_task_id
+    ).filter(
+        CaseTasks.task_case_id == caseid
     ).first()
 
 

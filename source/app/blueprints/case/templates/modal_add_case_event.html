@@ -17,10 +17,10 @@
                 <div class="row float-right">
                 {% if event.event_id %}
                     <div class="dropdown">
-                        <button class="btn bg-transparent pull-right" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                        <button class="btn bg-transparent pull-right" id="event_modal_actions_dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" aria-label="Open event actions menu">
                             <span aria-hidden="true"><i class="fas fa-ellipsis-v"></i></span>
                         </button>
-                        <div class="dropdown-menu pull-right" id="event_modal_quick_actions" aria-labelledby="dropdownMenuButton">
+                        <div class="dropdown-menu pull-right" id="event_modal_quick_actions" aria-labelledby="event_modal_actions_dropdown">
                             <a class="dropdown-item" href="#" onclick='copy_object_link({{event.event_id}});return false;'><i class="fa fa-share mr-2"></i>Share</a>
                             <a class="dropdown-item" href="#" onclick='copy_object_link_md("event", {{event.event_id}});return false;'><i class="fa-brands fa-markdown mr-2"></i>Markdown Link</a>
                             <a class="dropdown-item" href="#" onclick='duplicate_event({{event.event_id}});return false;'><i class="fa fa-clone mr-2"></i>Duplicate</a>
@@ -28,7 +28,7 @@
                     </div>
                 {% endif %}
 
-                    <button class="float-right btn bg-transparent" title="Minimize" onclick="modal_minimized('modal_add_event', '{% if event.event_id %} Event ID #{{ event.event_id }} {% else %} Add event {% endif %}');"> <i class='fa fa-minus'></i> </button>
+                    <button class="float-right btn bg-transparent" title="Minimize" aria-label="Minimize event dialog" onclick="modal_minimized('modal_add_event', '{% if event.event_id %} Event ID #{{ event.event_id }} {% else %} Add event {% endif %}');"> <i class='fa fa-minus'></i> </button>
                     <button type="button" class="float-right btn bg-transparent" data-dismiss="modal" aria-label="Close"><span
                         aria-hidden="true"><i class="fa fa-times"></i></span></button>
                 </div>
@@ -50,27 +50,60 @@
                                         {{ form.event_title(class='form-control col-md-12 col-sm-12',  autocomplete="off") }}
                                     </div>
                                     <div class="form-group col-xl-7 col-md-12">
-                                        <label for="event_timetitle" class="placeholder ml-2">Event Time *</label>
+                                        <fieldset class="border-0 p-0 m-0">
+                                        <legend class="placeholder ml-2">Event Time *</legend>
                                         <div class="row ml-2" id="event_date_inputs"  style="display:none;">
+                                                <label for="event_date" class="sr-only">Event date</label>
                                                 <input class="form-control col-5 mr-2" type="date" id="event_date" {% if event.event_date_wtz %} value="{{ event.event_date_wtz.strftime('%Y-%m-%d') }}"{% endif %}>
                                                 <span></span>
-                                                <input class="form-control col-4" type="time" step="0.001" id="event_time" {% if event.event_date_wtz %} value="{{ event.event_date_wtz.strftime('%H:%M:%S.%f')[:-3] }}" {% else %} value="00:00:00.000" {% endif %}>
+                                                <label for="event_time" class="sr-only">Event time</label>
+                                                <input class="form-control col-4" id="event_time" {% if event.event_date_wtz %} value="{{ event.event_date_wtz.strftime('%H:%M:%S.%f') }}" {% else %} value="00:00:00.000" {% endif %}>
                                                 <span></span>
+                                                <label for="event_tz" class="sr-only">Event timezone</label>
                                                 <input class="form-control col-2" type="text" id="event_tz" {% if event.event_tz %} value="{{ event.event_tz }}" {% else %} value="+00:00" {% endif %}>
-                                                <button class="btn btn-sm btn-outline-white" type="button" onclick="show_time_converter();return false;"><i class="fas fa-magic"></i></button>
-                                                <span id="convert_warning_feedback" class="text-warning"></span>
+                                                <button class="btn btn-sm btn-outline-white" type="button" aria-label="Use event date converter" onclick="show_time_converter();return false;"><i class="fas fa-magic"></i></button>
+                                                <span id="convert_warning_feedback" class="text-warning" role="status" aria-live="polite"></span>
                                         </div>
                                         <div class="row ml-2" id="event_date_convert">
                                             <div class="input-group ">
-                                                <input class="form-control col-9" type="text" id="event_date_convert_input" placeholder="Enter date in any format and submit to try auto-parsing">
+                                                <label for="event_date_convert_input" class="sr-only">Event date to convert</label>
+                                                <input class="form-control col-9" type="text" id="event_date_convert_input" {% if event.event_date_wtz %} value="{{ event.event_date_wtz.strftime('%Y-%m-%dT%H:%M:%S.%f') }}" {% else %} placeholder="Enter date in any format and submit to try auto-parsing" {% endif %}>
                                                 <div class="input-group-append">
                                                     <button class="btn btn-sm btn-outline-secondary mr-2" type="button" onclick="time_converter();return false;">Submit</button>
-                                                    <button class="btn btn-sm btn-outline" type="button" onclick="hide_time_converter();return false;"><i class="fas fa-magic"></i></button>
+                                                    <button class="btn btn-sm btn-outline" type="button" aria-label="Use separate event date fields" onclick="hide_time_converter();return false;"><i class="fas fa-magic"></i></button>
                                                 </div>
                                             </div>
-                                            <span id="convert_warning_feedback" class="text-warning"></span>
-                                            <span id="convert_bad_feedback" class="text-danger"></span>
+                                            <span id="convert_warning_feedback_converter" class="text-warning" role="status" aria-live="polite"></span>
+                                            <span id="convert_bad_feedback" class="text-danger" role="alert" aria-live="assertive"></span>
                                         </div>
+                                        </fieldset>
+                                        <fieldset class="border-0 p-0 m-0">
+                                        <legend class="placeholder ml-2 mt-3">End Event Time *</legend>
+                                        <div class="row ml-2" id="end_event_date_inputs" style="display:none;">
+                                                <label for="end_event_date" class="sr-only">End event date</label>
+                                                <input class="form-control col-5 mr-2" type="date" id="end_event_date" required {% if event.event_end_date_wtz %} value="{{ event.event_end_date_wtz.strftime('%Y-%m-%d') }}"{% endif %}>
+                                                <span></span>
+                                                <label for="end_event_time" class="sr-only">End event time</label>
+                                                <input class="form-control col-4" id="end_event_time" required {% if event.event_end_date_wtz %} value="{{ event.event_end_date_wtz.strftime('%H:%M:%S.%f') }}" {% else %} value="00:00:00.000" {% endif %}>
+                                                <span></span>
+                                                <label for="end_event_tz" class="sr-only">End event timezone</label>
+                                                <input class="form-control col-2" type="text" id="end_event_tz" required {% if event.event_end_tz %} value="{{ event.event_end_tz }}" {% else %} value="+00:00" {% endif %}>
+                                                <button class="btn btn-sm btn-outline-white" type="button" aria-label="Use end event date converter" onclick="show_end_time_converter();return false;"><i class="fas fa-magic"></i></button>
+                                                <span id="end_convert_warning_feedback" class="text-warning" role="status" aria-live="polite"></span>
+                                        </div>
+                                        <div class="row ml-2" id="end_event_date_convert">
+                                            <div class="input-group ">
+                                                <label for="end_event_date_convert_input" class="sr-only">End event date to convert</label>
+                                                <input class="form-control col-9" type="text" id="end_event_date_convert_input" {% if event.event_end_date_wtz %} value="{{ event.event_end_date_wtz.strftime('%Y-%m-%dT%H:%M:%S.%f') }}" {% else %} placeholder="Enter date in any format and submit to try auto-parsing" {% endif %}>
+                                                <div class="input-group-append">
+                                                    <button class="btn btn-sm btn-outline-secondary mr-2" type="button" onclick="end_time_converter();return false;">Submit</button>
+                                                    <button class="btn btn-sm btn-outline" type="button" aria-label="Use separate end event date fields" onclick="hide_end_time_converter();return false;"><i class="fas fa-magic"></i></button>
+                                                </div>
+                                            </div>
+                                            <span id="end_convert_warning_feedback_converter" class="text-warning" role="status" aria-live="polite"></span>
+                                            <span id="end_convert_bad_feedback" class="text-danger" role="alert" aria-live="assertive"></span>
+                                        </div>
+                                        </fieldset>
                                     </div>
                                 </div>
                                 <div class="row">
@@ -78,10 +111,10 @@
                                         <label for="event_content" class="placeholder">Event description</label>
                                         <div class="md_description_field">
                                             <div class="form-group mt--2">
-                                                    <button type="button" class="float-right icon-note btn btn-circle btn-sm mt-2" onclick="edit_in_event_desc();" >
+                                                    <button type="button" class="float-right icon-note btn btn-circle btn-sm mt-2" aria-label="Edit event description" onclick="edit_in_event_desc();" >
                                                     </button>
                                                     <button type="button" style="display: none;" class="btn btn-dark btn-sm float-right mr-2 mt-2"
-                                                            onclick="preview_event_description();" id="event_preview_button"><i class="fa-solid fa-eye"></i></button>
+                                                            aria-label="Preview event description" onclick="preview_event_description();" id="event_preview_button"><i class="fa-solid fa-eye"></i></button>
                                             </div>
                                             <div class="row">
                                                 <div class="col mb--2 ml--2" id="event_edition_btn" style="display:none;">
@@ -89,11 +122,19 @@
                                             </div>
                                             <div class="row" style="margin-left:0px;">
                                                 <div class="col-12" id="container_event_desc_content">
-                                                    <div id="event_description" contenteditable="true" spellcheck="true" class="mr-2" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}">{% if event.event_content %}{{ event.event_content  }}{% endif %}</div>
+                                                    <div id="event_description" contenteditable="true" spellcheck="true" role="textbox" aria-label="Event description editor" aria-multiline="true" class="mr-2" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}">{% if event.event_content %}{{ event.event_content  }}{% endif %}</div>
                                                     <textarea id="event_desc_content" rows="10" cols="82" style="display: none"></textarea>
                                                 </div>
                                                 <div class="col-12" id="container_event_description" style="display:none">
                                                     <div id="target_event_desc"></div>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2" style="margin-left:0px;">
+                                                <div class="col-12">
+                                                    <div id="event_image_preview_container" class="border rounded p-2" style="display:none;">
+                                                        <small class="text-muted d-block mb-2">Attached image preview</small>
+                                                        <div id="event_image_preview_content"></div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -135,15 +176,14 @@
                                         <label for="event_assets">Link to assets
                                         </label>
                                         <div class="select2-input ml-12" data-select2-id="6">
-                                            <select id="event_assets" name="event_assets" class="form-control select2-hidden-accessible ml-12" multiple="" data-select2-id="event_assets" tabindex="-1" aria-hidden="true" style="width: 100%">
+                                            <select id="event_assets" name="event_assets" class="form-control select2-hidden-accessible ml-12" multiple="" data-select2-id="event_assets" tabindex="-1" aria-hidden="true" aria-label="Link to assets" style="width: 100%">
                                             </select>
                                         </div>
                                     </div>
                                     <div class="form-group col-12 col-md-6">
-                                        <label for="event_assets">Link to IOCs
-                                        </label>
+                                        <label for="event_iocs">Link to IOCs</label>
                                         <div class="select2-input ml-12" data-select2-id="6">
-                                            <select id="event_iocs" name="event_iocs" class="form-control select2-hidden-accessible ml-12" multiple="" data-select2-id="event_iocs" tabindex="-1" aria-hidden="true" style="width: 100%">
+                                            <select id="event_iocs" name="event_iocs" class="form-control select2-hidden-accessible ml-12" multiple="" data-select2-id="event_iocs" tabindex="-1" aria-hidden="true" aria-label="Link to IOCs" style="width: 100%">
                                             </select>
                                         </div>
                                     </div>
@@ -193,52 +233,80 @@
                                             </label>
                                         </div>
                                     </div>
-                                    <div class="form-group col-xl-3 col-md-12">
-                                        <label class="form-label">Event color</label>
+                                    <div class="form-group col-xl-6 col-md-12">
+                                        <fieldset class="border-0 p-0 m-0">
+                                        <legend class="form-label">Event color</legend>
                                         <div class="row gutters-xs">
                                             <div class="col-auto">
-                                                <label class="selectgroup-item">
-                                                    <input name="event_color" type="radio" value="#fff" {% if event.event_color == "#fff" %} checked="checked" {% endif %} class="colorinput-input">
-                                                    <span class="colorinput-color bg-white"></span>
+                                                 <label class="selectgroup-item" title="No color">
+                                                    <input name="event_color" type="radio" value="" aria-label="No color" {% if not event.event_color or event.event_color == "#fff" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <span class="colorinput-color bg-white border border-dark d-flex align-items-center justify-content-center">
+                                                        <i class="px-1 fas fa-times text-danger fa-2x"></i>
+                                                    </span>
                                                 </label>
                                             </div>
                                             <div class="col-auto">
                                                 <label class="selectgroup-item">
-                                                    <input name="event_color" type="radio" value="#1572E899" {% if event.event_color == "#1572E899" %} checked="checked" {% endif %} class="colorinput-input">
-                                                    <span class="colorinput-color bg-primary"></span>
-                                                </label>
-                                            </div>
-                                            <div class="col-auto">
-                                                <label class="selectgroup-item">
-                                                    <input name="event_color" type="radio" value="#6861CE99" {% if event.event_color == "#6861CE99" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <input name="event_color" type="radio" value="#6861CE99" aria-label="Purple" {% if event.event_color == "#6861CE99" %} checked="checked" {% endif %} class="colorinput-input">
                                                     <span class="colorinput-color bg-secondary"></span>
                                                 </label>
                                             </div>
                                             <div class="col-auto">
                                                 <label class="selectgroup-item">
-                                                    <input name="event_color" type="radio" value="#48ABF799" {% if event.event_color == "#48ABF799" %} checked="checked" {% endif %}class="colorinput-input">
+                                                    <input name="event_color" type="radio" value="#48ABF799" aria-label="Blue" {% if event.event_color == "#48ABF799" %} checked="checked" {% endif %}class="colorinput-input">
                                                     <span class="colorinput-color bg-info"></span>
                                                 </label>
                                             </div>
                                             <div class="col-auto">
                                                 <label class="selectgroup-item">
-                                                    <input name="event_color" type="radio" value="#31CE3699" {% if event.event_color == "#31CE3699" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <input name="event_color" type="radio" value="#31CE3699" aria-label="Green" {% if event.event_color == "#31CE3699" %} checked="checked" {% endif %} class="colorinput-input">
                                                     <span class="colorinput-color bg-success"></span>
                                                 </label>
                                             </div>
                                             <div class="col-auto">
                                                 <label class="selectgroup-item">
-                                                    <input name="event_color" type="radio" value="#F2596199" {% if event.event_color == "#F2596199" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <input name="event_color" type="radio" value="#F2596199" aria-label="Red" {% if event.event_color == "#F2596199" %} checked="checked" {% endif %} class="colorinput-input">
                                                     <span class="colorinput-color bg-danger"></span>
                                                 </label>
                                             </div>
                                             <div class="col-auto">
                                                 <label class="selectgroup-item">
-                                                    <input name="event_color" type="radio" value="#FFAD4699" {% if event.event_color == "#FFAD4699" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <input name="event_color" type="radio" value="#FFAD4699" aria-label="Orange" {% if event.event_color == "#FFAD4699" %} checked="checked" {% endif %} class="colorinput-input">
                                                     <span class="colorinput-color bg-warning"></span>
                                                 </label>
                                             </div>
+                                            <div class="col-auto">
+                                                <label class="selectgroup-item">
+                                                    <input name="event_color" type="radio" value="#94A3B8" aria-label="Slate" {% if event.event_color == "#94A3B8" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <span class="colorinput-color" style="background-color: #94A3B8;"></span>
+                                                </label>
+                                            </div>
+                                            <div class="col-auto">
+                                                <label class="selectgroup-item">
+                                                    <input name="event_color" type="radio" value="#B5BCFF" aria-label="Lavender" {% if event.event_color == "#B5BCFF" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <span class="colorinput-color" style="background-color: #B5BCFF;"></span>
+                                                </label>
+                                            </div>
+                                            <div class="col-auto">
+                                                <label class="selectgroup-item">
+                                                    <input name="event_color" type="radio" value="#14B8A6" aria-label="Teal" {% if event.event_color == "#14B8A6" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <span class="colorinput-color" style="background-color: #14B8A6;"></span>
+                                                </label>
+                                            </div>
+                                            <div class="col-auto">
+                                                <label class="selectgroup-item">
+                                                    <input name="event_color" type="radio" value="#FACC15" aria-label="Yellow" {% if event.event_color == "#FACC15" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <span class="colorinput-color" style="background-color: #FACC15;"></span>
+                                                </label>
+                                            </div>
+                                            <div class="col-auto">
+                                                <label class="selectgroup-item">
+                                                    <input name="event_color" type="radio" value="#912136" aria-label="Maroon" {% if event.event_color == "#912136" %} checked="checked" {% endif %} class="colorinput-input">
+                                                    <span class="colorinput-color" style="background-color: #912136;"></span>
+                                                </label>
+                                            </div>
                                         </div>
+                                        </fieldset>
                                     </div>
                                 </div>
                             </div>

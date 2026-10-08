@@ -17,7 +17,7 @@
 #  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 import logging
 
-from app import app
+from flask import current_app as app
 from app import socket_io
 
 if __name__ != '__main__':

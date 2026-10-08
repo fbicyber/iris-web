@@ -45,7 +45,7 @@
           <div class="tab-content">
               <div class="tab-pane active" id="details">
                 <div id="case_gen_info_content">
-                    <h4>General info <button class="ml-2 btn btn-sm float-right" onclick="edit_case_info();">Edit</button></h4>
+                    <h4>General info <button class="ml-2 btn btn-sm float-right" onclick="edit_case_info();" aria-label="Edit case info">Edit</button></h4>
                     <div class="row">
                         <div class="col-6 col-xs-12 col-md-6">
                             <div class="form-group">
@@ -294,7 +294,7 @@
                                                         </div>
                                                         <input type="text" aria-describedby="ingp_{{loop.index}}" class="form-control" name="protagonist_contact_{{loop.index}}" value="{{ iprota.contact }}" placeholder="Contact" list="emails-list">
                                                     </div>
-                                                    <button type="button" class="btn btn-sm  btn-outline-dark mr-2 mt-1" onclick="remove_protagonist('{{loop.index}}');">
+                                                    <button type="button" class="btn btn-sm  btn-outline-dark mr-2 mt-1" onclick="remove_protagonist('{{loop.index}}');" aria-label="Remove protagonist">
                                                         Remove
                                                     </button>
                                                     <hr/>
@@ -304,7 +304,7 @@
                                     {% endif %}
                                     <div id="protagonist_list_edit">
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-outline-dark mt-2 mr-2" id="add_protagonist_btn"  onclick="add_protagonist();">Add protagonist</button>
+                                    <button type="button" class="btn btn-sm btn-outline-dark mt-2 mr-2" id="add_protagonist_btn"  onclick="add_protagonist();" aria-label="Add protagonist">Add protagonist</button>
                                 </div>
                             </div>
                         </form>
@@ -317,8 +317,8 @@
                             <div class="card-title">Case access</div>
                         </div>
                         <div class="col">
-                            <button class="btn btn-dark btn-sm ml-3 float-right" onclick="access_case_info_reload('{{ data.case_id }}');">Refresh</button>
-                            <button class="btn btn-dark btn-sm ml-2 float-right" onclick="view_case_access_via_group('{{ data.case_id }}');">Set access via group</button>
+                            <button class="btn btn-dark btn-sm ml-3 float-right" onclick="access_case_info_reload('{{ data.case_id }}');" aria-label="Refresh case access">Refresh</button>
+                            <button class="btn btn-dark btn-sm ml-2 float-right" onclick="view_case_access_via_group('{{ data.case_id }}');" aria-label="Set case access via group">Set access via group</button>
                         </div>
                     </div>
                       <div class="row mt-4">
@@ -395,17 +395,17 @@
 
 <div class="modal-footer">
     <button type="button" class="btn btn-outline-danger " onclick="remove_case('{{ data.case_id }}');"
-            id="delete_case_info">Delete case</button>
+            id="delete_case_info" aria-label="Delete case">Delete case</button>
 
     {% if not data.close_date %}
         <button type="button" class="btn btn-outline-warning mr-auto" onclick="close_case('{{ data.case_id }}');"
-                id="close_case_info">Close case</button>
+                id="close_case_info" aria-label="Close case">Close case</button>
     {% else %}
         <button type="button" class="btn btn-success" onclick="reopen_case('{{ data.case_id }}');"
-                id="reopen_case_info">Reopen case</button>
+                id="reopen_case_info" aria-label="Reopen case">Reopen case</button>
     {% endif %}
-    <button type="button" class="btn btn-outline-dark mr-2" style="display:none;" id="cancel_case_info"  onclick="cancel_case_edit();">Cancel</button>
-    <button type="button" class="btn btn-outline-success mr-2" style="display:none;" id="save_case_info" onclick="save_case_edit({{ data.case_id }});">Save</button>
+    <button type="button" class="btn btn-outline-dark mr-2" style="display:none;" id="cancel_case_info"  onclick="cancel_case_edit();" aria-label="Cancel case edit">Cancel</button>
+    <button type="button" class="btn btn-outline-success mr-2" style="display:none;" id="save_case_info" onclick="save_case_edit({{ data.case_id }});" aria-label="Save case info">Save</button>
 </div>
 
 <script>

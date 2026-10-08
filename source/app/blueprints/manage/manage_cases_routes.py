@@ -14,11 +14,12 @@
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with this program; if not, write to the Free Software Foundation,
 #  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-from typing import Union
+import copy
 import logging as log
 import os
 import traceback
 import urllib.parse
+from typing import Union
 
 from flask import Blueprint
 from flask import redirect
@@ -30,7 +31,7 @@ from flask_wtf import FlaskForm
 from werkzeug import Response
 from werkzeug.utils import secure_filename
 
-from app import db
+from app.extensions import db
 from app.datamgmt.alerts.alerts_db import get_alert_status_by_name
 from app.datamgmt.case.case_db import get_case
 from app.datamgmt.client.client_db import get_client_list
@@ -76,6 +77,20 @@ from app.business.errors import PermissionDeniedError
 manage_cases_blueprint = Blueprint('manage_case',
                                    __name__,
                                    template_folder='templates')
+
+
+def _remove_case_id_creation_attribute(attributes):
+    filtered_attributes = copy.deepcopy(attributes)
+
+    for tab_name in list(filtered_attributes.keys()):
+        for field_name in list(filtered_attributes[tab_name].keys()):
+            if field_name.lower() == 'case id':
+                del filtered_attributes[tab_name][field_name]
+
+        if not filtered_attributes[tab_name]:
+            del filtered_attributes[tab_name]
+
+    return filtered_attributes
 
 
 # CONTENT ------------------------------------------------
@@ -337,7 +352,7 @@ def add_case_modal():
     form.classification_id.choices = [(clc['id'], clc['name_expanded']) for clc in get_case_classifications_list()]
     form.case_template_id.choices = [(ctp['id'], ctp['display_name']) for ctp in get_case_templates_list()]
 
-    attributes = get_default_custom_attributes('case')
+    attributes = _remove_case_id_creation_attribute(get_default_custom_attributes('case'))
 
     return render_template('modal_add_case.html', form=form, attributes=attributes)
 

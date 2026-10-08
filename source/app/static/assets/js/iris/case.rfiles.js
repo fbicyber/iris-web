@@ -1,3 +1,5 @@
+var current_evidence_list;
+
 /* reload the rfiles table */
 function reload_rfiles(notify) {
     get_case_rfiles();
@@ -168,6 +170,8 @@ function get_case_rfiles() {
                 jsdata = response.data;
                 Table.clear();
                 Table.rows.add(jsdata.evidences);
+                current_evidence_list = jsdata.evidences;
+                
                 Table.columns.adjust().draw();
 
                 load_menu_mod_options('evidence', Table, delete_rfile);
@@ -349,10 +353,39 @@ function update_rfile(rfiles_id) {
         $('#modal_add_rfiles').modal("hide");
     });
 }
+function get_selected_rows_rfile_ids(table_selected_rows){
+    /**
+     *  Gather all selected rows 
+     *  Get the rfile ids of the selected rows
+     * 
+     *  Return: a Set() of selected rows's rfile ids
+     */
+
+    var rfile_id_set = new Set();
+
+    // adding rfile ids from TABLE selected rows to the set, it should NOT add duplicates
+    table_selected_rows.each(function(rfile){
+        rfile_id_set.add(rfile.id.toString());
+    });
+
+    return rfile_id_set;
+
+}
 
 /* Delete an rfiles */
-function delete_rfile(rfiles_id) {
-    do_deletion_prompt("You are about to delete evidence #" + rfiles_id)
+function delete_rfile(rfile_id = null, skip_prompt = false) {
+    var rfile_id_set = new Set();
+
+    if (rfile_id !== undefined && rfile_id !== null && rfile_id !== '') {
+        rfile_id_set.add(rfile_id.toString());
+    } else {
+        var table_selected_rows = Table.rows('.selected').data();
+        rfile_id_set = get_selected_rows_rfile_ids(table_selected_rows);
+    }
+
+    rfile_id_set.forEach(rfiles_id => {
+    window.location.hash = rfiles_id;
+    (skip_prompt ? Promise.resolve(true) : do_deletion_prompt("You are about to delete evidence #" + rfiles_id))
     .then((doDelete) => {
         if (doDelete) {
             post_request_api('evidences/delete/' + rfiles_id)
@@ -363,6 +396,196 @@ function delete_rfile(rfiles_id) {
             });
         }
     });
+})
+}
+
+function generate_events_sample_excel(){
+    let workbook = new ExcelJS.Workbook();
+    let worksheet = workbook.addWorksheet('Evidence');
+    
+    worksheet.columns = [
+        { header: 'id', key: 'id'},
+        { header: 'filename', key: 'filename'},
+        { header: 'type', key: 'type'},
+        { header: 'file_hash', key: 'file_hash' },
+        { header: 'file_size', key: 'file_size' },
+        { header: 'file_description', key: 'file_description'},
+        { header: 'host', key: 'host'},
+        { header: 'external_id', key: 'external_id'},
+        { header: 'added_by', key: 'added_by'},
+    ];
+
+    worksheet.addRow({ 
+        id: "",
+        filename: "text.txt", 
+        type: "Unspecified", 
+        file_hash: "abcd", 
+        file_size: "1234", 
+        file_description: "Evidence description",
+        host: "my host",
+        external_id: "", 
+        added_by: ""});
+    
+    // Unfreeze every column except id
+    for(let col_idx = 1; col_idx <= worksheet.columnCount; col_idx++)
+    {
+        let col = worksheet.getColumn(col_idx);
+        if (col._header != "id")
+        {
+            col.protection = { locked: false, lockText: false };
+        }
+    }
+    // Freeze headers
+    let header_row = worksheet.getRow(1);
+    header_row.protection = { locked: true, lockText: true };
+
+    // Resize column width to largest value + a buffer
+    worksheet.columns.forEach(column => {
+        let lengths = column.values.map(v => v.toString().length);
+        let maxLength = Math.max(...lengths.filter(v => typeof v === 'number'));
+        column.width = maxLength+1;
+    });
+
+    let caseid = get_caseid();
+    let date = get_current_datetime_iso();
+
+    let filename = "iris_case_" + caseid + "_evidence_" + date + ".xlsx";
+
+    workbook.xlsx.writeBuffer().then(function (data) {
+        const blob = new Blob([data],
+            { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+    });
+}
+
+/**
+ * Export evidence table as an Excel workbook
+ */
+function evidenceToExcel() {
+    let workbook = new ExcelJS.Workbook();
+    let worksheet = workbook.addWorksheet('Evidence');
+    worksheet.columns = [
+        { header: 'id', key: 'id'},
+        { header: 'filename', key: 'filename'},
+        { header: 'type', key: 'type'},
+        { header: 'file_hash', key: 'file_hash' },
+        { header: 'file_size', key: 'file_size' },
+        { header: 'file_description', key: 'file_description'},
+        { header: 'host', key: 'host'},
+        { header: 'external_id', key: 'external_id'},
+        { header: 'added_by', key: 'added_by'},
+    ];
+    
+    for (index in current_evidence_list){
+        evidence = current_evidence_list[index];
+
+        worksheet.addRow({
+            id: evidence.id, 
+            filename: evidence.filename, 
+            type: evidence.type.name, 
+            file_hash: evidence.file_hash, 
+            file_size: evidence.file_size, 
+            file_description: evidence.file_description, 
+            host: evidence.host, 
+            external_id: evidence.external_id, 
+            added_by: evidence.user.user_name
+        });
+    }
+
+    // Unfreeze every column except id
+    for(let col_idx = 1; col_idx <= worksheet.columnCount; col_idx++)
+    {
+        let col = worksheet.getColumn(col_idx);
+        if (col._header != "id")
+        {
+            col.protection = { locked: false, lockText: false };
+        }
+    }
+    // Freeze headers
+    let header_row = worksheet.getRow(1);
+    header_row.protection = { locked: true, lockText: true };
+
+    // Resize column width to largest value + a buffer
+    worksheet.columns.forEach(column => {
+        let lengths = column.values.map(v => v.toString().length);
+        let maxLength = Math.max(...lengths.filter(v => typeof v === 'number'));
+        column.width = maxLength+1;
+    });
+
+    let caseid = get_caseid();
+    let date = get_current_datetime_iso();
+
+    let filename = "iris_case_" + caseid + "_evidence_" + date + ".xlsx";
+
+    workbook.xlsx.writeBuffer().then(function (data) {
+        const blob = new Blob([data],
+            { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+    });
+}
+
+/* BEGIN_RS_CODE */
+function fire_upload_excel_evidence() {
+    $('#modal_upload_excel_evidence').modal('show');
+}
+
+function upload_excel_evidence(){
+    const api_path =  '/case/evidences/excel_upload';
+    const modal_dlg = '#modal_upload_excel_evidence'
+    const file_input = '#input_upload_excel_evidence'
+
+    var file = $(file_input).get(0).files[0];
+
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        let fileData = e.target.result
+        let data = new Object();
+        data['csrf_token'] = $('#csrf_token').val();
+        //need to convert the buffer to an Array object for JSON.stringify to work
+        data['excel_data'] = Array.from(new Uint8Array(fileData));
+
+        post_request_api(api_path, JSON.stringify(data), true)
+        .done((data) => {
+            var str = '<ul style="list-style-type: none; padding: 0;">'
+            data.data.forEach(function(item) {
+                str += '<li>'+ item + '</li>';
+            }); 
+            str += '</ul> <i>Recoverable errors can be solved by fixing the error in your file and reuploading.</i>';
+
+            let msg = document.createElement('div')
+            msg.innerHTML = str
+
+            if (notify_auto_api(data)) {
+                $(modal_dlg).modal('hide');
+                swal({
+                    title: "Upload done. Any rows with errors are displayed below",
+                    icon: "success",
+                    content: msg,
+                })
+            } else {
+                swal({
+                    title: "That didn't work :(",
+                    icon: "error",
+                    content: msg,
+                })
+            }
+        })
+
+    };
+    //read in excel file as bytes
+    reader.readAsArrayBuffer(file)
+
+    return false;
 }
 
 /* Page is ready, fetch the rfiles of the case */
@@ -376,10 +599,13 @@ $(document).ready(function(){
     Table = $("#rfiles_table").DataTable({
         dom: '<"container-fluid"<"row"<"col"l><"col"f>>>rt<"container-fluid"<"row"<"col"i><"col"p>>>',
         fixedHeader: true,
+        stateSave: true,
+        autoWidth: false,
         aaData: [],
         aoColumns: [
           {
             "data": "filename",
+            "width": "15%",
             "render": function (data, type, row, meta) {
               if (type === 'display' && data != null) {
 
@@ -404,6 +630,7 @@ $(document).ready(function(){
             }
           },
           { "data": "type_id",
+            "width": "12%",
             "render": function (data, type, row, meta) {
               if (type === 'display' || type === 'sort' || type === 'filter') {
 
@@ -417,22 +644,32 @@ $(document).ready(function(){
             }
           },
           { "data": "file_hash",
+            "width": "15%",
             "render": function (data, type, row, meta) {
                 if (type === 'display') { return ret_obj_dt_description(data);}
                 return data;
               }
           },
           { "data": "file_size",
+            "width": "12%",
             "render": function (data, type, row, meta) {
                 if (type === 'display') { data = sanitizeHTML(data);}
                 return data;
               }},
           { "data": "file_description",
+            "width": "12%",
+            "render": function (data, type, row, meta) {
+                if (type === 'display') { return ret_obj_dt_description(data);}
+                return data;
+              }},
+          { "data": "host",
+            "width": "12%",
             "render": function (data, type, row, meta) {
                 if (type === 'display') { return ret_obj_dt_description(data);}
                 return data;
               }},
           { "data": "user",
+            "width": "12%",
             "render": function (data, type, row, meta) {
                 if (type === 'display'|| type === 'sort' || type === 'filter') {
                     data = sanitizeHTML(data.user_name);
@@ -445,6 +682,7 @@ $(document).ready(function(){
         ordering: true,
         processing: true,
         retrieve: true,
+        pageLength: 100,
         buttons: [
         ],
         responsive: {
@@ -462,17 +700,34 @@ $(document).ready(function(){
     });
     $("#rfiles_table").css("font-size", 12);
 
-    // apply search 
-    $('#datatable_search_bar').keyup(function(){
-        Table.search($(this).val()).draw() ;
-    })
+    // apply search
+    $('input#datatable_search_bar').keyup(function(){
+        Table.search($(this).val()).draw();
+    });
 
-    // prevent redirect to case #1 by default 
-    $('#datatable_search_bar').on("keypress", function(e){
+    // prevent redirect to case #1 by default
+    $('input#datatable_search_bar').on("keypress", function(e){
         if (e.which == 13) {
             e.preventDefault();
         }
-    })
+    });
+
+    function clearGlobalSearchIfSearchBarEmpty() {
+        let searchBarValue = $('input#datatable_search_bar').first().val();
+        if (searchBarValue === undefined) {
+            return;
+        }
+
+        if (searchBarValue.trim() === '' && Table.search() !== '') {
+            Table.search('').draw();
+            Table.state.save();
+        }
+    }
+
+    clearGlobalSearchIfSearchBarEmpty();
+    $(window).on('pageshow.caseRfilesSearchReset', function() {
+        clearGlobalSearchIfSearchBarEmpty();
+    });
 
     
     var buttons = new $.fn.dataTable.Buttons(Table, {
@@ -489,6 +744,13 @@ $(document).ready(function(){
     Table.on( 'responsive-resize', function ( e, datatable, columns ) {
             hide_table_search_input( columns );
     });
+
+
+    // change row status to 'selected'
+    Table.on('click', 'tbody tr', function (e) {
+        e.currentTarget.classList.toggle('selected');
+    });
+
 
     get_case_rfiles();
     setInterval(function() { check_update('evidences/state'); }, 3000);

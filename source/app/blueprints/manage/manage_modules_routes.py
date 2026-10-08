@@ -26,7 +26,7 @@ from flask import request
 from flask import url_for
 from flask_wtf import FlaskForm
 
-from app import app
+from flask import current_app as app
 from app.datamgmt.iris_engine.modules_db import delete_module_from_id, parse_module_parameter
 from app.datamgmt.iris_engine.modules_db import get_module_config_from_id
 from app.datamgmt.iris_engine.modules_db import get_module_from_id

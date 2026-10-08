@@ -18,7 +18,7 @@
 from flask_login import current_user
 from sqlalchemy import and_
 
-from app import db
+from app.extensions import db
 from app.datamgmt.states import update_timeline_state
 from app.models import AssetsType
 from app.models import CaseAssets
@@ -46,13 +46,13 @@ def get_case_events_assets_graph(caseid):
         AssetsType.asset_name.label('type_name'),
         AssetsType.asset_icon_not_compromised,
         AssetsType.asset_icon_compromised,
-        CasesEvent.event_color,
         CaseAssets.asset_compromise_status_id,
         CaseAssets.asset_description,
         CaseAssets.asset_ip,
         CaseAssets.asset_external_ip,
         CasesEvent.event_date,
-        CasesEvent.event_tags
+        CasesEvent.event_tags,
+        CasesEvent.event_color,
     ).filter(and_(
         CaseEventsAssets.case_id == caseid,
         CasesEvent.event_in_graph == True
@@ -73,6 +73,7 @@ def get_case_events_ioc_graph(caseid):
         CasesEvent.event_uuid,
         CasesEvent.event_title,
         CasesEvent.event_date,
+        CasesEvent.event_color,
         Ioc.ioc_id,
         Ioc.ioc_value,
         Ioc.ioc_description,
@@ -96,11 +97,11 @@ def get_events_categories():
         EventCategory.id,
         EventCategory.name
     ).all()
-    
+
     # pre: [(1, 'Unspecified'), (2, 'Legitimate'), ...]
     # post: [(12, 'Collection'), (13, 'Command and Control'), ...]
     # sort the list based on the category names, alphabetical order
-    event_categories = sorted(event_categories, key=lambda x:x[1]) 
+    event_categories = sorted(event_categories, key=lambda x:x[1])
 
     return event_categories
 
@@ -129,6 +130,11 @@ def get_case_event_comments(event_id, caseid):
     ).join(
         EventComments,
         Comments.comment_id == EventComments.comment_id
+    ).join(
+        CasesEvent,
+        CasesEvent.event_id == EventComments.comment_event_id
+    ).filter(
+        CasesEvent.case_id == caseid
     ).order_by(
         Comments.comment_date.asc()
     ).all()
@@ -162,6 +168,11 @@ def get_case_event_comment(event_id, comment_id, caseid):
         EventComments.comment
     ).join(
         Comments.user
+    ).join(
+        CasesEvent,
+        CasesEvent.event_id == EventComments.comment_event_id
+    ).filter(
+        CasesEvent.case_id == caseid
     ).first()
 
 

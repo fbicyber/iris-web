@@ -29,8 +29,8 @@ from flask import send_file
 from flask import url_for
 from flask_login import current_user
 
-from app import app
-from app import db
+from flask import current_app as app
+from app.extensions import db
 from app.forms import AddReportTemplateForm
 from app.iris_engine.utils.tracker import track_activity
 from app.models.authorization import Permissions

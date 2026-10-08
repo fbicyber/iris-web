@@ -24,9 +24,9 @@ from flask import url_for
 from flask_wtf import FlaskForm
 from werkzeug.utils import redirect
 
-from app import app
-from app import celery
-from app import db
+from flask import current_app as app
+from app.extensions import celery
+from app.extensions import db
 from app.datamgmt.manage.manage_srv_settings_db import get_alembic_revision
 from app.datamgmt.manage.manage_srv_settings_db import get_srv_settings
 from app.iris_engine.backup.backup import backup_iris_db
@@ -60,7 +60,7 @@ def manage_update(caseid, url_redir):
     return render_template('manage_make_update.html')
 
 
-@manage_srv_settings_blueprint.route('/manage/server/backups/make-db', methods=['GET'])
+@manage_srv_settings_blueprint.route('/manage/server/backups/make-db', methods=['POST'])
 @ac_api_requires(Permissions.server_administrator)
 def manage_make_db_backup():
 

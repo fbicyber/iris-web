@@ -61,8 +61,10 @@ def check_current_user_has_some_case_access_stricter(access_levels):
 # When moving down permission checks from the REST layer into the business layer,
 # this method is used to replace annotation ac_api_requires
 def check_current_user_has_some_permission(permissions):
-    if 'permissions' not in session:
-        session['permissions'] = ac_get_effective_permissions_of_user(current_user)
+    # Always recompute rather than trusting whatever was cached at login: group/role
+    # changes and admin-initiated revocations must take effect on the very next request,
+    # not only once the session cookie eventually expires (CWE-613).
+    session['permissions'] = ac_get_effective_permissions_of_user(current_user)
 
     for permission in permissions:
         if session['permissions'] & permission.value:

@@ -25,8 +25,8 @@ from flask import request
 from flask import url_for
 from flask_login import current_user
 
-from app import app
-from app import db
+from flask import current_app as app
+from app.extensions import db
 from app.datamgmt.client.client_db import get_client_list
 from app.datamgmt.manage.manage_cases_db import list_cases_dict
 from app.datamgmt.manage.manage_groups_db import get_groups_list
@@ -51,6 +51,7 @@ from app.iris_engine.access_control.utils import ac_get_all_access_level
 from app.iris_engine.access_control.utils import ac_current_user_has_permission
 from app.iris_engine.utils.tracker import track_activity
 from app.models.authorization import Permissions
+from app.models.authorization import hash_api_key
 from app.schema.marshables import UserSchema
 from app.schema.marshables import BasicUserSchema
 from app.schema.marshables import UserFullSchema
@@ -157,7 +158,7 @@ def add_user():
                            user_is_service_account=cuser.is_service_account)
 
         udata = user_schema.dump(user)
-        udata['user_api_key'] = user.api_key
+        udata['user_api_key'] = getattr(user, 'raw_api_key', None)
         del udata['user_password']
 
         if cuser:
@@ -460,7 +461,7 @@ def update_user_api(cur_id):
         return response_error(msg="Data error", data=e.messages)
 
 
-@manage_users_blueprint.route('/manage/users/deactivate/<int:cur_id>', methods=['GET'])
+@manage_users_blueprint.route('/manage/users/deactivate/<int:cur_id>', methods=['POST'])
 @ac_api_requires(Permissions.server_administrator)
 def deactivate_user_api(cur_id):
 
@@ -482,7 +483,7 @@ def deactivate_user_api(cur_id):
     return response_success("User deactivated", data=user_schema.dump(user))
 
 
-@manage_users_blueprint.route('/manage/users/activate/<int:cur_id>', methods=['GET'])
+@manage_users_blueprint.route('/manage/users/activate/<int:cur_id>', methods=['POST'])
 @ac_api_requires(Permissions.server_administrator)
 def activate_user_api(cur_id):
 
@@ -512,13 +513,19 @@ def renew_user_api_key(cur_id):
     if protect_demo_mode_user(user):
         return ac_api_return_access_denied()
 
-    user.api_key = secrets.token_urlsafe(nbytes=64)
+    raw_api_key = secrets.token_urlsafe(nbytes=64)
+    user.api_key = hash_api_key(raw_api_key)
     db.session.commit()
 
     user_schema = UserFullSchema()
 
+    # The hash just stored is not usable by the caller; return the raw key here, once,
+    # since it cannot be recovered from the database afterward.
+    udata = user_schema.dump(user)
+    udata['api_key'] = raw_api_key
+
     track_activity(f"API key of user {user.user} renewed", ctx_less=True)
-    return response_success(f"API key of user {user.user} renewed", data=user_schema.dump(user))
+    return response_success(f"API key of user {user.user} renewed", data=udata)
 
 
 @manage_users_blueprint.route('/manage/users/delete/<int:cur_id>', methods=['POST'])

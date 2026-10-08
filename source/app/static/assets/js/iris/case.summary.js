@@ -14,7 +14,8 @@ var editor = ace.edit("editor_summary",
 var textarea = $('#case_summary');
 
 function Collaborator( session_id ) {
-    this.collaboration_socket = io.connect() ;
+    // Use shared socket manager instead of creating new connection
+    this.collaboration_socket = window.socketManager.getSocket();
 
     this.channel = "case-" + session_id;
     this.collaboration_socket.emit('join', { 'channel': this.channel });
@@ -114,16 +115,101 @@ function report_template_selector() {
     $('#modal_select_report').modal({ show: true });
 }
 
-function gen_report(safe) {
-    url = '/case/report/generate-investigation/' + $("#select_report option:selected").val() + case_param();
+function view_reports() {
+    $('#modal_view_reports').modal({ show: true });
+    load_report_downloads();
+}
+
+function format_bytes(bytes) {
+    if (bytes === null || bytes === undefined || isNaN(bytes)) {
+        return '';
+    }
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    if (bytes === 0) return '0 B';
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const value = bytes / Math.pow(1024, i);
+    return value.toFixed(value < 10 && i > 0 ? 1 : 0) + ' ' + sizes[i];
+}
+
+function load_report_downloads() {
+    const tbody = $('#reports_downloads_body');
+    tbody.html('<tr><td colspan="3">Loading...</td></tr>');
+
+    get_request_api('/case/report/list-reports')
+        .done((data) => {
+            let items = [];
+            const hasStatus = data && Object.prototype.hasOwnProperty.call(data, 'status');
+            if (hasStatus && !notify_auto_api(data, true)) {
+                tbody.html('<tr><td colspan="3">Unable to load reports.</td></tr>');
+                return;
+            }
+
+            if (data && data.data !== undefined) {
+                if (Array.isArray(data.data)) {
+                    items = data.data;
+                } else if (Array.isArray(data.data.Contents)) {
+                    items = data.data.Contents;
+                } else if (Array.isArray(data.data.contents)) {
+                    items = data.data.contents;
+                }
+            } else if (Array.isArray(data)) {
+                items = data;
+            }
+
+            if (!items || items.length === 0) {
+                tbody.html('<tr><td colspan="3">No reports found.</td></tr>');
+                return;
+            }
+
+            items.sort((a, b) => {
+                const ad = new Date(a.LastModified || a.last_modified || a.Date || a.date || 0).getTime();
+                const bd = new Date(b.LastModified || b.last_modified || b.Date || b.date || 0).getTime();
+                return bd - ad;
+            });
+
+            const rows = items.map((item) => {
+                const key = item.Key || item.key || item.filename || '';
+                const filename = key ? key.split('/').pop() : '';
+                const dateRaw = item.LastModified || item.last_modified || item.Date || item.date || '';
+                const date = dateRaw ? new Date(dateRaw).toLocaleString() : '';
+                const size = format_bytes(item.Size || item.size);
+                const downloadUrl = '/case/report/download-report/' + encodeURIComponent(filename) + case_param();
+                const filenameCell = filename.startsWith("pending_")
+                    ? '<i>Pending...</i>'
+                    : `<a href="${downloadUrl}">${sanitizeHTML(filename)}</a>`;
+                return `<tr>
+                    <td>${filenameCell}</td>
+                    <td>${sanitizeHTML(date)}</td>
+                    <td>${sanitizeHTML(size)}</td>
+                </tr>`;
+            }).join('');
+
+            tbody.html(rows);
+        })
+        .fail(() => {
+            tbody.html('<tr><td colspan="3">No reports found.</td></tr>');
+        });
+}
+
+async function gen_report(safe) {
+    url = '/case/report/generate-investigation/' + $("#select_report option:selected").val();
     if (safe === true) {
         url += '&safe=true';
     }
-    window.open(url, '_blank');
+
+    notify_success('Report Generating for ' + $("#select_report option:selected").text());
+    try {
+        await get_request_api(url);
+        notify_success_sticky('Report Ready for ' + $("#select_report option:selected").text() + '. Check the "View reports" section to download.');
+    } catch (e) {
+        notify_error('Report generation failed.');
+    }
+
+    // window.open(url, '_blank');
 }
 
 function gen_act_report(safe) {
-    url = '/case/report/generate-activities/' + $("#select_report_act option:selected").val() + case_param();
+    url = '/case/report/generate-activities/' + $("#select_report_act option:selected").val();
     if (safe === true) {
         url += '&safe=true';
     }

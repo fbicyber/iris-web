@@ -63,14 +63,14 @@
 
             {% if assettype.asset_id %}
                 <button type="button" class="btn btn-outline-danger mt-5"
-                onclick="delete_asset_type('{{ assettype.asset_id }}');">Delete</button>
+                onclick="delete_asset_type('{{ assettype.asset_id }}');" aria-label="Delete asset type">Delete</button>
                 <button type="submit" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_assettype">Update</button>
+                id="submit_new_assettype" aria-label="Update asset type">Update</button>
 
             {% else %}
 
                 <button type="submit" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_assettype">Save</button>
+                id="submit_new_assettype" aria-label="Save asset type">Save</button>
 
             {% endif %}
             </div>

@@ -20,6 +20,7 @@ import marshmallow
 # IMPORTS ------------------------------------------------
 from datetime import datetime
 from flask import Blueprint, jsonify
+from flask import current_app as app
 from flask import redirect
 from flask import render_template
 from flask import request
@@ -29,7 +30,7 @@ from flask_socketio import emit, join_room
 from flask_wtf import FlaskForm
 from sqlalchemy import or_, and_
 
-from app import db, socket_io, app
+from app.extensions import db, socket_io
 from app.blueprints.case.case_comments import case_comment_update
 from app.business.errors import BusinessProcessingError, UnhandledBusinessError
 from app.business.notes import update, create, list_note_revisions, get_note_revision, delete_note_revision
@@ -114,7 +115,7 @@ def case_note_detail(cur_id, caseid):
         if not note:
             return response_error(msg="Invalid note ID")
 
-        note_comments = get_case_note_comments(cur_id)
+        note_comments = get_case_note_comments(cur_id, caseid)
 
         note_schema = CaseNoteSchema()
         comments_schema = CommentSchema(many=True)
@@ -405,7 +406,7 @@ def case_comment_note_modal(cur_id, caseid, url_redir):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_note_list(cur_id, caseid):
 
-    note_comments = get_case_note_comments(cur_id)
+    note_comments = get_case_note_comments(cur_id, caseid)
     if note_comments is None:
         return response_error('Invalid note ID')
 
@@ -452,7 +453,7 @@ def case_comment_note_add(cur_id, caseid):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_note_get(cur_id, com_id, caseid):
 
-    comment = get_case_note_comment(cur_id, com_id)
+    comment = get_case_note_comment(cur_id, com_id, caseid)
     if not comment:
         return response_error("Invalid comment ID")
 

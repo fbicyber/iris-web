@@ -19,7 +19,7 @@
 
 import logging
 
-from app import db
+from app.extensions import db
 
 
 def clean_db():

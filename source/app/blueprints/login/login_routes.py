@@ -16,6 +16,7 @@
 #  along with this program; if not, write to the Free Software Foundation,
 #  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 import base64
+import time
 
 import io
 
@@ -39,9 +40,9 @@ from flask import url_for
 from flask_login import current_user, login_required
 from flask_login import login_user
 
-from app import app
-from app import bc
-from app import db
+from flask import current_app as app
+from app.extensions import bc
+from app.extensions import db
 from app import oidc_client
 from app.datamgmt.manage.manage_srv_settings_db import get_server_settings_as_dict
 
@@ -62,6 +63,11 @@ login_blueprint = Blueprint(
 )
 
 log = app.logger
+
+# A fixed bcrypt hash (cost 12, matching the default used for real accounts) checked
+# against unknown/service-account usernames, purely to burn the same amount of time as a
+# real check_password_hash call. Never matches any real password.
+_DUMMY_PASSWORD_HASH = '$2b$12$taqk1GxhW/e94v7WCg72I.H2yOzxK4JZYz7ZTMab5y/gWUnf9xevi'
 
 
 # filter User out of database through username
@@ -86,6 +92,9 @@ def _render_template_login(form, msg):
 def _validate_local_login(username, password):
     user = _retrieve_user_by_username(username)
     if not user:
+        # Pay the same bcrypt cost as a real check, so response timing doesn't reveal
+        # whether the username exists (CWE-208).
+        bc.check_password_hash(_DUMMY_PASSWORD_HASH, password)
         return None
 
     if bc.check_password_hash(user.password, password):
@@ -131,6 +140,9 @@ def _authenticate_ldap(form, username, password, local_fallback=True):
 def _authenticate_password(form, username, password):
     user = _retrieve_user_by_username(username)
     if not user or user.is_service_account:
+        # Pay the same bcrypt cost as a real check, so response timing doesn't reveal
+        # whether the username exists as an active, non-service account (CWE-208).
+        bc.check_password_hash(_DUMMY_PASSWORD_HASH, password)
         return _render_template_login(form, 'Wrong credentials. Please try again.')
 
     if bc.check_password_hash(user.password, password):
@@ -213,6 +225,18 @@ if is_authentication_oidc():
 
         access_token_resp = oidc_client.do_access_token_request(state=auth_resp["state"], request_args=args)
 
+        # The nonce is what binds this id_token to the browser session that initiated the
+        # login; without this check the state match alone only proves the callback matches
+        # the attacker's own initiation, not that the token was issued for this session.
+        id_token_nonce = access_token_resp['id_token'].get('nonce')
+        if not id_token_nonce or id_token_nonce != session.get('oidc_nonce'):
+            track_activity(
+                "OIDC id_token nonce does not match the nonce issued for this login attempt",
+                ctx_less=True,
+                display_in_ui=False,
+            )
+            return redirect(url_for("login.login"))
+
         # not all providers set email by default, use preferred_username where it's missing
         # Use the mapping from the configuration or default to email or preferred_username if not set
         email_field = app.config.get("OIDC_MAPPING_EMAIL")
@@ -258,6 +282,41 @@ if is_authentication_oidc():
 
         return wrap_login_user(user, is_oidc=True)
 
+def _safe_next_url(raw_next, ctx_case):
+    """Return a safe post-login redirect target, or None.
+
+    A naive check like `urlsplit(next_url).netloc != ''` misses payloads such as
+    `/\\evil.com` or `http:/evil.com`: urlsplit treats a backslash as a normal path
+    character (not an authority separator) and doesn't require `//` after a scheme, so
+    both slip through with an empty netloc while still resolving to another origin once
+    a browser parses the redirected Location header (CWE-601, open redirect).
+
+    A safe redirect target here is a site-relative path only.
+    """
+    if not raw_next or not isinstance(raw_next, str):
+        return None
+
+    # Reject control characters and backslashes; browsers following the WHATWG URL
+    # Standard normalize a leading backslash to '/', turning '/\evil.com' into
+    # the scheme-relative '//evil.com'.
+    if any(ord(c) < 0x20 or c == '\\' for c in raw_next):
+        return None
+
+    # Must be a site-relative path: starts with a single '/', not '//'.
+    if not raw_next.startswith('/') or raw_next.startswith('//'):
+        return None
+
+    # Defense in depth: confirm urlsplit agrees there is no scheme or netloc.
+    parts = urlsplit(raw_next)
+    if parts.scheme or parts.netloc:
+        return None
+
+    if 'cid=' in raw_next:
+        return raw_next
+    separator = '&' if parts.query else '?'
+    return raw_next + separator + 'cid=' + str(ctx_case)
+
+
 def wrap_login_user(user, is_oidc=False):
 
     session['username'] = user.user
@@ -288,11 +347,8 @@ def wrap_login_user(user, is_oidc=False):
 
     track_activity("user '{}' successfully logged-in".format(user.user), ctx_less=True, display_in_ui=False)
 
-    next_url = None
-    if request.args.get('next'):
-        next_url = request.args.get('next') if 'cid=' in request.args.get('next') else request.args.get('next') + '?cid=' + str(user.ctx_case)
-
-    if not next_url or urlsplit(next_url).netloc != '':
+    next_url = _safe_next_url(request.args.get('next'), user.ctx_case)
+    if next_url is None:
         next_url = url_for('index.index', cid=user.ctx_case)
 
     return redirect(next_url)
@@ -302,6 +358,17 @@ def wrap_login_user(user, is_oidc=False):
 def mfa_setup():
     user = _retrieve_user_by_username(username=session['username'])
     form = MFASetupForm()
+
+    # This endpoint is reachable as soon as session['username'] is set, i.e. right after
+    # password validation and before the MFA gate. If MFA is already enrolled, knowing
+    # the password alone must not be enough to silently replace the enrolled TOTP secret
+    # with an attacker-chosen one - that would defeat the second factor entirely. Re-
+    # enrollment for an already-configured account requires an administrator reset via
+    # /manage/access-control/reset-mfa first.
+    if user.mfa_setup_complete and user.mfa_secrets:
+        track_activity(f'Rejected MFA re-enrollment attempt for already-enrolled user {user.user}',
+                       ctx_less=True, display_in_ui=False)
+        return redirect(url_for('mfa_verify'))
 
     if form.submit() and form.validate():
 
@@ -369,13 +436,20 @@ def mfa_verify():
             return render_template('mfa_verify.html', form=form)
 
         totp = pyotp.TOTP(user.mfa_secrets)
-        if totp.verify(token):
+        current_step = int(time.time() // totp.interval)
+        already_used = user.mfa_last_verified_step is not None and current_step <= user.mfa_last_verified_step
+        if totp.verify(token) and not already_used:
+            user.mfa_last_verified_step = current_step
+            db.session.commit()
             session.pop('username', None)
             session['mfa_verified'] = True
             track_activity(f'MFA verification successful for user {user.user}', ctx_less=True, display_in_ui=False)
             return wrap_login_user(user)
         else:
-            track_activity(f'Failed MFA verification for user {user.user}. Invalid token.', ctx_less=True, display_in_ui=False)
+            if already_used:
+                track_activity(f'Rejected replayed MFA token for user {user.user}', ctx_less=True, display_in_ui=False)
+            else:
+                track_activity(f'Failed MFA verification for user {user.user}. Invalid token.', ctx_less=True, display_in_ui=False)
             flash('Invalid token. Please try again.', 'danger')
 
     return render_template('mfa_verify.html', form=form)

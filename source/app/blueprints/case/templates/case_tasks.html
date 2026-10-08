@@ -25,6 +25,7 @@
 					<div class="row ml-1 my-2 w-100">
                         <div class="col-md-5">
                             <form class="form">
+                                <label for="datatable_search_bar" class="sr-only">Search tasks</label>
                                 <input type="text" id="datatable_search_bar" class="form-control form-control-custom-search" placeholder="Search">
                             </form>
                         </div>
@@ -34,7 +35,7 @@
                     </div>
 					<ul class="navbar-nav topbar-nav ml-md-auto align-items-center page-navigation page-navigation-style-2 page-navigation-secondary">
                         <li class="nav-item ml-2">
-                            <span class="text-white text-sm mr-2" id="last_resfresh">Loading</span>
+                            <span class="text-white text-sm mr-2" id="last_resfresh" role="status" aria-live="polite">Loading</span>
                         </li>
                         <li class="nav-item">
                             <button class="btn btn-primary btn-sm" onclick="get_tasks();">
@@ -52,7 +53,7 @@
         <div class="page-inner ">
             <div class="row ">
                  <div class="col-md-12">
-                        <div class="loader1 text-center ml-mr-auto" id="loading_msg">Loading...</div>
+                        <div class="loader1 text-center ml-mr-auto" id="loading_msg" role="status" aria-live="polite">Loading...</div>
                         <section class="card" id="card_main_load" style="display:none;">
 
                             <div class="card-body">
@@ -87,7 +88,7 @@
             </div>
         </div>
 
-        <div class="modal " tabindex="-1" role="dialog" id="modal_add_task" data-backdrop="true">
+        <div class="modal " tabindex="-1" role="dialog" aria-label="Add or edit task" id="modal_add_task" data-backdrop="true">
             <div class="modal-xxl modal-dialog" role="document">
                 <div class="modal-content" id="modal_add_task_content">
 

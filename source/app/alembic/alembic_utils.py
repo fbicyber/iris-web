@@ -7,17 +7,14 @@ from sqlalchemy import text
 
 
 def _table_has_column(table, column):
-    config = op.get_context().config
-    engine = engine_from_config(
-        config.get_section(config.config_ini_section), prefix='sqlalchemy.')
-    connection = engine.connect()
+    # Use the migration's bind so the check runs in the same session/transaction
+    # as Alembic operations (avoids cross-session locking races).
+    connection = op.get_bind()
     try:
         result = connection.execute(text(f"SELECT * FROM \"{table}\" LIMIT 1"))
         columns = result.keys()
-    except Exception as e:
+    except Exception:
         return False
-    finally:
-        connection.close()
 
     has_column = column in columns
     return has_column

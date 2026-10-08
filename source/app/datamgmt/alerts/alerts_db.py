@@ -20,13 +20,12 @@ from copy import deepcopy
 import json
 from datetime import datetime, timedelta
 from flask_login import current_user
-from functools import reduce
 from sqlalchemy import desc, asc, func, tuple_, or_, not_, and_
 from sqlalchemy.orm import aliased, make_transient, selectinload
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 
 import app
-from app import db
+from app.extensions import db
 from app.datamgmt.case.case_assets_db import create_asset, set_ioc_links, get_unspecified_analysis_status_id
 from app.datamgmt.case.case_events_db import update_event_assets, update_event_iocs
 from app.datamgmt.case.case_iocs_db import add_ioc, add_ioc_link
@@ -97,7 +96,7 @@ def build_condition(column, operator, value):
                 "Non-in operators on relationships require specifying a related model column, e.g., owner.id or assets.asset_name.")
 
     # If we get here, 'column' should be an actual column, not a relationship.
-    if operator == 'not':
+    if operator == 'not' or operator == 'neq':
         return column != value
     elif operator == 'in':
         return column.in_(value)
@@ -107,6 +106,8 @@ def build_condition(column, operator, value):
         return column == value
     elif operator == 'like':
         return column.ilike(f"%{value}%")
+    elif operator == 'not_like':
+        return ~column.ilike(f"%{value}%")
     else:
         raise ValueError(f"Unsupported operator: {operator}")
 
@@ -734,10 +735,11 @@ def merge_alert_in_case(alert: Alert, case: Cases, iocs_list: List[str],
 
                 alert_asset.analysis_status_id = get_unspecified_analysis_status_id()
 
-                tmp_asset = CaseAssets.query.filter(
-                    CaseAssets.asset_uuid == alert_asset.asset_uuid,
+                tmp_asset = CaseAssets.query.filter(and_(
+                    CaseAssets.asset_name == alert_asset.asset_name,
+                    CaseAssets.asset_type_id == alert_asset.asset_type_id,
                     CaseAssets.case_id == case.case_id
-                ).first()
+                )).first()
 
                 if tmp_asset:
                     asset = tmp_asset

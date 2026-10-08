@@ -20,9 +20,9 @@ import string
 
 from flask_login import current_user
 
-from app import app
-from app import bc
-from app import db
+from flask import current_app as app
+from app.extensions import bc
+from app.extensions import db
 from app.datamgmt.manage.manage_groups_db import add_case_access_to_group
 from app.datamgmt.manage.manage_users_db import add_user_to_group
 from app.datamgmt.manage.manage_users_db import add_user_to_organisation
@@ -33,6 +33,7 @@ from app.models import Client
 from app.models import get_or_create
 from app.models.authorization import CaseAccessLevel
 from app.models.authorization import User
+from app.models.authorization import hash_api_key
 
 log = app.logger
 
@@ -102,7 +103,7 @@ def create_demo_users(def_org, gadm, ganalystes, users_count, seed_user, adm_cou
                 name=name,
                 active=True)
 
-            user.api_key = api_key
+            user.api_key = hash_api_key(api_key)
             db.session.add(user)
             db.session.commit()
             add_user_to_group(user_id=user.id, group_id=ganalystes.group_id)
@@ -123,7 +124,7 @@ def create_demo_users(def_org, gadm, ganalystes, users_count, seed_user, adm_cou
                 name=name,
                 active=True)
 
-            user.api_key = api_key
+            user.api_key = hash_api_key(api_key)
             db.session.add(user)
             db.session.commit()
             add_user_to_group(user_id=user.id, group_id=gadm.group_id)

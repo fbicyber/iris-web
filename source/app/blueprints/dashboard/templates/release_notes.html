@@ -1,0 +1,40 @@
+{% extends "layouts/default.html" %}
+
+{% block title %} Release Notes {% endblock title %}
+
+{% block content %}
+<div class="panel-header bg-primary-gradient mt--4">
+  <div class="page-inner py-5">
+    <h2 class="text-white pb-2 fw-bold">Release Notes</h2>
+  </div>
+</div>
+
+<div class="page-inner mt--5">
+  <div class="row">
+    <div class="col-md-12">
+      <section class="card">
+        <div class="card-header">
+          <div class="card-title">CHANGELOG.md</div>
+        </div>
+        <div class="card-body">
+          <div id="release-notes-md" style="display:none;">{{ changelog_content }}</div>
+          <div id="release-notes-html"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block javascripts %}
+<script>
+  const converter = new showdown.Converter({
+    tables: true,
+    strikethrough: true,
+    ghCompatibleHeaderId: true
+  });
+  const markdownSource = document.getElementById('release-notes-md').textContent || '';
+  document.getElementById('release-notes-html').innerHTML = converter.makeHtml(markdownSource);
+</script>
+{% endblock javascripts %}
+

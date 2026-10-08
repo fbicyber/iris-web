@@ -18,7 +18,7 @@
 
 from flask import Blueprint
 
-from app import app
+from flask import current_app as app
 from app.util import ac_api_requires
 from app.util import response_success
 

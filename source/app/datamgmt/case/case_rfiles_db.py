@@ -21,12 +21,13 @@ from flask_login import current_user
 from sqlalchemy import and_
 from sqlalchemy import desc
 
-from app import db
+from app.extensions import db
 from app.datamgmt.manage.manage_attribute_db import get_default_custom_attributes
 from app.datamgmt.states import update_evidences_state
 from app.models import CaseReceivedFile
 from app.models import Comments
 from app.models import EvidencesComments
+from app.models import EvidenceTypes
 from app.models.authorization import User
 
 
@@ -64,6 +65,14 @@ def get_rfile(rfile_id, caseid):
     ).first()
 
 
+def get_rfile_from_ext_id(external_id, caseid):
+    crf = CaseReceivedFile.query.filter(
+        CaseReceivedFile.external_id == external_id,
+        CaseReceivedFile.case_id == caseid
+    ).first()
+    return crf
+
+
 def update_rfile(evidence, user_id, caseid):
 
     evidence.user_id = user_id
@@ -96,12 +105,17 @@ def delete_rfile(rfile_id, caseid):
         db.session.commit()
 
 
-def get_case_evidence_comments(evidence_id):
+def get_case_evidence_comments(evidence_id, caseid):
     return Comments.query.filter(
         EvidencesComments.comment_evidence_id == evidence_id
     ).join(
         EvidencesComments,
         Comments.comment_id == EvidencesComments.comment_id
+    ).join(
+        CaseReceivedFile,
+        CaseReceivedFile.id == EvidencesComments.comment_evidence_id
+    ).filter(
+        CaseReceivedFile.case_id == caseid
     ).order_by(
         Comments.comment_date.asc()
     ).all()
@@ -128,7 +142,7 @@ def get_case_evidence_comments_count(evidences_list):
     ).all()
 
 
-def get_case_evidence_comment(evidence_id, comment_id):
+def get_case_evidence_comment(evidence_id, comment_id, caseid):
     return EvidencesComments.query.filter(
         EvidencesComments.comment_evidence_id == evidence_id,
         EvidencesComments.comment_id == comment_id
@@ -144,6 +158,11 @@ def get_case_evidence_comment(evidence_id, comment_id):
         EvidencesComments.comment
     ).join(
         Comments.user
+    ).join(
+        CaseReceivedFile,
+        CaseReceivedFile.id == EvidencesComments.comment_evidence_id
+    ).filter(
+        CaseReceivedFile.case_id == caseid
     ).first()
 
 
@@ -164,3 +183,18 @@ def delete_evidence_comment(evidence_id, comment_id):
     db.session.commit()
 
     return True, "Comment deleted"
+
+
+def get_evidence_type_by_name(evidence_type):
+    return EvidenceTypes.query.filter(
+        EvidenceTypes.name  == evidence_type,
+    ).first()
+
+
+def get_default_evidence_type():
+    return EvidenceTypes.query.with_entities(
+        EvidenceTypes.id,
+        EvidenceTypes.name
+    ).filter(
+        EvidenceTypes.name == "Unspecified"
+    ).first()

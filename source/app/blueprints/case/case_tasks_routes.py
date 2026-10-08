@@ -28,7 +28,7 @@ from flask import url_for
 from flask_login import current_user
 from flask_wtf import FlaskForm
 
-from app import db
+from app.extensions import db
 from app.blueprints.case.case_comments import case_comment_update
 from app.datamgmt.case.case_db import get_case
 from app.datamgmt.case.case_tasks_db import add_comment_to_task
@@ -154,6 +154,9 @@ def case_add_task(caseid):
 
         task_assignee_list = request_data['task_assignees_id']
         del request_data['task_assignees_id']
+        # Never load a client-supplied primary key on create, or marshmallow-sqlalchemy
+        # would fetch and overwrite an existing task from another case.
+        request_data.pop('id', None)
         task = task_schema.load(request_data)
 
         ctask = add_task(task=task,
@@ -290,7 +293,7 @@ def case_comment_task_modal(cur_id, caseid, url_redir):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_task_list(cur_id, caseid):
 
-    task_comments = get_case_task_comments(cur_id)
+    task_comments = get_case_task_comments(cur_id, caseid)
     if task_comments is None:
         return response_error('Invalid task ID')
 
@@ -337,7 +340,7 @@ def case_comment_task_add(cur_id, caseid):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_task_get(cur_id, com_id, caseid):
 
-    comment = get_case_task_comment(cur_id, com_id)
+    comment = get_case_task_comment(cur_id, com_id, caseid)
     if not comment:
         return response_error("Invalid comment ID")
 

@@ -49,7 +49,6 @@ function initiate_update() {
 }
 
 var intervalId = null;
-var ios = io('/server-updates');
 var update_socket = null;
 var current_version = null;
 var updated_version = null;
@@ -132,7 +131,8 @@ function start_updates(){
 
 $(document).ready(function(){
 
-    update_socket = ios.connect();
+    // Use shared socket manager for server-updates namespace
+    update_socket = window.socketManager.getNamespace('/server-updates');
 
     update_socket.on( "update_status", function(data) {
         add_update_log(data.message, data.is_error)

@@ -22,7 +22,7 @@ from flask import request
 from flask import url_for
 from werkzeug.utils import redirect
 
-from app import db
+from app.extensions import db
 from app.datamgmt.case.case_iocs_db import get_ioc_types_list
 from app.datamgmt.manage.manage_case_objs import search_ioc_type_by_name
 from app.forms import AddIocTypeForm

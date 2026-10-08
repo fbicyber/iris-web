@@ -15,6 +15,7 @@
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with this program; if not, write to the Free Software Foundation,
 #  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+import boto3
 import collections
 import json
 import logging as logger
@@ -32,10 +33,19 @@ from functools import partial
 from sqlalchemy_imageattach.stores.fs import HttpExposedFileSystemStore
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from app.flask_dropzone import Dropzone
-from app.iris_engine.tasker.celery import make_celery
+from app.configuration import Config
+from app.extensions import bc
+from app.extensions import cache
+from app.extensions import celery
+from app.extensions import db
+from app.extensions import dropzone
+from app.extensions import lm
+from app.extensions import ma
+from app.extensions import socket_io
+from app.iris_engine.tasker.celery import init_celery
 from app.iris_engine.access_control.oidc_handler import get_oidc_client
 
+config = Config
 
 class ReverseProxied(object):
     def __init__(self, flask_app):
@@ -49,7 +59,15 @@ class ReverseProxied(object):
 
 
 class AlertsNamespace(Namespace):
-    pass
+    def on_connect(self):
+        # This namespace has no client-initiated events to gate with a per-event
+        # decorator - it is only ever used for server-broadcast events (e.g. new_alert),
+        # namespace-wide. Without a connect-time check, any client could connect (cors is
+        # wide open) and passively receive that reconnaissance data (CWE-306).
+        from flask import request as flask_request
+        from app.util import is_user_authenticated
+        if not is_user_authenticated(flask_request):
+            return False
 
 
 APP_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -62,80 +80,121 @@ LOG_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 logger.basicConfig(level=logger.INFO, format=LOG_FORMAT, datefmt=LOG_TIME_FORMAT)
 
-app = Flask(__name__)
+# app = Flask(__name__)
+
+
+def _refresh_session_permissions():
+    # Deferred import: app.iris_engine.access_control.utils reads current_app at import
+    # time, so it can't be imported at module load here, before the Flask app exists.
+    from flask_login import current_user
+    from app.iris_engine.access_control.utils import ac_get_effective_permissions_of_user
+    session['permissions'] = ac_get_effective_permissions_of_user(current_user)
+    return session['permissions']
 
 
 def ac_current_user_has_permission(*permissions):
     """
     Return True if current user has permission
     """
+    # Always recompute rather than trusting whatever was cached at login: group/role
+    # changes and admin-initiated revocations must take effect on the very next request,
+    # not only once the session cookie eventually expires (CWE-613).
+    perms = _refresh_session_permissions()
     for permission in permissions:
-
-        if ('permissions' in session and
-                session['permissions'] & permission.value == permission.value):
+        if perms & permission.value == permission.value:
             return True
 
     return False
 
 
 def ac_current_user_has_manage_perms():
-
-    if session['permissions'] != 1 and session['permissions'] & 0x1FFFFF0 != 0:
+    perms = _refresh_session_permissions()
+    if perms != 1 and perms & 0x1FFFFF0 != 0:
         return True
     return False
 
 
-app.jinja_env.filters['unquote'] = lambda u: urllib.parse.unquote(u)
-app.jinja_env.filters['tojsonsafe'] = lambda u: json.dumps(u, indent=4, ensure_ascii=False)
-app.jinja_env.filters['tojsonindent'] = lambda u: json.dumps(u, indent=4)
-app.jinja_env.filters['escape_dots'] = lambda u: u.replace('.', '[.]')
-app.jinja_env.globals.update(user_has_perm=ac_current_user_has_permission)
-app.jinja_env.globals.update(user_has_manage_perms=ac_current_user_has_manage_perms)
-app.jinja_options["autoescape"] = lambda _: True
-app.jinja_env.autoescape = True
-
-app.config.from_object('app.configuration.Config')
-
-cache = Cache(app)
-
-SQLALCHEMY_ENGINE_OPTIONS = {
-    "json_deserializer": partial(json.loads, object_pairs_hook=collections.OrderedDict),
-    "pool_pre_ping": True
-}
-
-db = SQLAlchemy(app, engine_options=SQLALCHEMY_ENGINE_OPTIONS)  # flask-sqlalchemy
-
-bc = Bcrypt(app)  # flask-bcrypt
-
-lm = LoginManager()  # flask-loginmanager
-lm.init_app(app)  # init the login manager
-
-ma = Marshmallow(app) # Init marshmallow
-
-dropzone = Dropzone(app)
-
-celery = make_celery(app)
+s3 = boto3.client(
+    's3',
+    endpoint_url=getattr(config, 'FS_ENDPOINT', None),
+    aws_access_key_id=getattr(config, 'FS_ACCESS_KEY', None),
+    aws_secret_access_key=getattr(config, 'FS_SECRET_KEY', None),
+    config=boto3.session.Config(
+        signature_version="s3v4",
+        connect_timeout=10,
+        read_timeout=20,
+        retries={"max_attempts": 2, "mode": "standard"}
+    ),
+    region_name="rustfs"
+)
 
 store = HttpExposedFileSystemStore(
     path='images',
     prefix='/static/assets/images/'
 )
 
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
-app.wsgi_app = store.wsgi_middleware(app.wsgi_app)
-
-socket_io = SocketIO(app, cors_allowed_origins="*")
-
-alerts_namespace = AlertsNamespace('/alerts')
-socket_io.on_namespace(alerts_namespace)
-
 oidc_client = None
-if app.config.get('AUTHENTICATION_TYPE') == "oidc":
-    oidc_client = get_oidc_client(app)
+if getattr(config, 'AUTHENTICATION_TYPE', None) == "oidc":
+    oidc_client = get_oidc_client(config)
 
-@app.teardown_appcontext
-def shutdown_session(exception=None):
-    db.session.remove()
+# TODO: figure out where this goes in factory pattern
+# @app.teardown_appcontext
+# def shutdown_session(exception=None):
+#     db.session.remove()
 
+def create_app(config=None):
+    # logger.warn("Initializing Flask app")
+    app = Flask(__name__)
+    app.logger.setLevel(logger.INFO)
 
-from app import views
+    @app.after_request
+    def after_request(response):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+        return response
+
+    app.jinja_env.filters['unquote'] = lambda u: urllib.parse.unquote(u)
+    app.jinja_env.filters['tojsonsafe'] = lambda u: json.dumps(u, indent=4, ensure_ascii=False)
+    app.jinja_env.filters['tojsonindent'] = lambda u: json.dumps(u, indent=4)
+    app.jinja_env.filters['escape_dots'] = lambda u: u.replace('.', '[.]')
+    app.jinja_env.globals.update(user_has_perm=ac_current_user_has_permission)
+    app.jinja_env.globals.update(user_has_manage_perms=ac_current_user_has_manage_perms)
+    app.jinja_options["autoescape"] = lambda _: True
+
+    app.jinja_env.autoescape = True
+    app.config.from_object('app.configuration.Config')
+
+    if config:
+        app.config.update(config)
+
+    # app.config['RUN_POST_INIT'] = run_post_init
+
+    # Initialize application state for extensions
+    logger.info("Initializing application extensions")
+    cache.init_app(app)
+    lm.init_app(app)
+    db.init_app(app)
+    bc.init_app(app)
+    ma.init_app(app)
+    dropzone.init_app(app)
+    init_celery(app)
+
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+    app.wsgi_app = store.wsgi_middleware(app.wsgi_app)
+
+    socket_io.init_app(
+        app,
+        message_queue=app.config['SOCKETIO_MESSAGE_QUEUE'],
+        async_mode='gevent',
+        cors_allowed_origins="*",
+    )
+    alerts_namespace = AlertsNamespace('/alerts')
+    socket_io.on_namespace(alerts_namespace)
+
+    with app.app_context():
+
+        from app import views
+
+        return app
+

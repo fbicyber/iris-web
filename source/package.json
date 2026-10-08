@@ -1,0 +1,44 @@
+{
+  "name": "iris-js-coverage",
+  "version": "1.0.0",
+  "description": "Unit tests and code coverage for IRIS JavaScript",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "setupFilesAfterEnv": [
+      "<rootDir>/app/static/assets/js/iris/__tests__/setup.js"
+    ],
+    "collectCoverageFrom": [
+      "app/static/assets/js/iris/**/*.js"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/vendor/",
+      ".min.js",
+      "/__tests__/"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/coverage/"
+    ],
+    "coverageReporters": [
+      "lcov",
+      "html",
+      "text",
+      "cobertura"
+    ],
+    "bail": false,
+    "collectCoverage": false
+  },
+  "devDependencies": {
+    "jest": "^29.5.0",
+    "jest-environment-jsdom": "^29.5.0",
+    "jquery": "^3.7.0"
+  }
+}

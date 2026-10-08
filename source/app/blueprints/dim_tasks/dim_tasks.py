@@ -24,10 +24,13 @@ from flask import redirect
 from flask import render_template
 from flask import request
 from flask import url_for
+from flask_login import current_user
 from flask_wtf import FlaskForm
 from sqlalchemy import desc
 
 import app
+from app.iris_engine.access_control.utils import ac_current_user_has_permission
+from app.iris_engine.access_control.utils import ac_fast_check_user_has_case_access
 from app.iris_engine.module_handler.module_handler import call_modules_hook
 from app.models import CaseAssets
 from app.models import CaseReceivedFile
@@ -232,12 +235,26 @@ def list_dim_tasks(count):
 
         user = None
         case_name = None
+        task_caseid = None
         if row.kwargs and row.kwargs != b'{}':
             kwargs = json.loads(row.kwargs.decode('utf-8'))
             if kwargs:
                 user = kwargs.get('init_user')
-                case_name = f"Case #{kwargs.get('caseid')}"
+                task_caseid = kwargs.get('caseid')
+                case_name = f"Case #{task_caseid}"
                 task_name = f"{kwargs.get('module_name')}::{kwargs.get('hook_name')}"
+
+        # Only surface tasks the caller can actually see: a case-bound task requires
+        # access to that case, and a task with no case (platform-wide/module-level) is
+        # server-administrator only. Without this, any authenticated user could read
+        # every module hook task ever recorded, across every case.
+        if task_caseid is not None:
+            if ac_fast_check_user_has_case_access(
+                    current_user.id, task_caseid,
+                    [CaseAccessLevel.read_only, CaseAccessLevel.full_access]) is None:
+                continue
+        elif not ac_current_user_has_permission(Permissions.server_administrator):
+            continue
 
         try:
             result = pickle.loads(row.result)
@@ -290,6 +307,19 @@ def task_status(task_id, caseid, url_redir):
     task_info['Engine']: task.name if task.name else "No engine. Unrecoverable shadow failure"
 
     task_meta = task._get_task_meta()
+
+    # The @ac_case_requires decorator only validated access to the cid the caller chose
+    # in the query string - not the case this specific task actually belongs to. Without
+    # this check, any user could read another case's task kwargs and module logs simply
+    # by supplying their own accessible cid alongside an arbitrary task_id.
+    task_real_caseid = (task_meta.get('kwargs') or {}).get('caseid')
+    if task_real_caseid is not None:
+        if ac_fast_check_user_has_case_access(
+                current_user.id, task_real_caseid,
+                [CaseAccessLevel.read_only, CaseAccessLevel.full_access]) is None:
+            return response_error("Invalid task ID for this case")
+    elif not ac_current_user_has_permission(Permissions.server_administrator):
+        return response_error("Invalid task ID for this case")
 
     if task_meta.get('name') \
             and ('task_hook_wrapper' in task_meta.get('name') or 'pipeline_dispatcher' in task_meta.get('name')):

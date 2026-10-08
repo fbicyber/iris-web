@@ -129,8 +129,8 @@ function update_task_ext(task_id, do_close) {
 }
 
 /* Delete an event from the timeline thank to its id */ 
-function delete_task(id) {
-    do_deletion_prompt("You are about to delete task #" + id)
+function delete_task(id, skip_prompt = false) {
+    (skip_prompt ? Promise.resolve(true) : do_deletion_prompt("You are about to delete task #" + id))
     .then((doDelete) => {
         if (doDelete) {
             post_request_api("tasks/delete/" + id)
@@ -321,6 +321,7 @@ $(document).ready(function(){
     Table = $("#tasks_table").DataTable({
         dom: '<"container-fluid"<"row"<"col"l><"col"f>>>rt<"container-fluid"<"row"<"col"i><"col"p>>>',
         aaData: [],
+        stateSave: true,
         fixedHeader: true,
         aoColumns: [
           {
@@ -360,11 +361,12 @@ $(document).ready(function(){
             "data": "task_status_id",
             "render": function(data, type, row) {
                if (type === 'display') {
-                  data = sanitizeHTML(data);
                   data = '<span class="badge ml-2 badge-'+ row['status_bscolor'] +'">' + row['status_name'] + '</span>';
                }
-               else if (type === 'filter' || type === 'sort'){
+               else if (type === 'filter'){
                   data = row['status_name']
+               } else if (type === 'sort' || type === 'type') {
+                  data = parseInt(row['task_status_id']);
                } else if (type === 'export') {
                    data = row['status_name']
                 }
@@ -440,7 +442,7 @@ $(document).ready(function(){
         ordering: true,
         processing: true,
         retrieve: true,
-        pageLength: 50,
+        pageLength: 100,
         order: [[ 2, "asc" ]],
         buttons: [
         ],

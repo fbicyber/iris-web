@@ -72,7 +72,7 @@ function build_ds_tree(data, tree_node) {
                                 <a href="#" class="dropdown-item" onclick="add_ds_multi_files('${node}');return false;"><small class="fa-solid fa-file-circle-plus fa-box mr-2"></small>Add files</a>
                                 <div class="dropdown-divider"></div>
                                 <a href="#" class="dropdown-item" onclick="move_ds_folder('${node}');return false;"><small class="fa fa-arrow-right-arrow-left mr-2"></small>Move</a>
-                                <a href="#" class="dropdown-item" onclick="rename_ds_folder('${node}', '${sanitizeHTML(data[node].name)}');return false;"><small class="fa-solid fa-pencil mr-2"></small>Rename</a>
+                                <a href="#" class="dropdown-item" onclick="rename_ds_folder('${node}', '${toBinary64(data[node].name)}');return false;"><small class="fa-solid fa-pencil mr-2"></small>Rename</a>
                                 ${can_delete}
                         </div>
                     <ul id='tree-${node}'></ul>
@@ -169,7 +169,7 @@ function add_ds_folder(parent_node) {
 function rename_ds_folder(parent_node, name) {
     $('#ds_mod_folder_name').data('parent-node', parent_node);
     $('#ds_mod_folder_name').data('node-update', true);
-    $('#ds_mod_folder_name').val(name);
+    $('#ds_mod_folder_name').val(fromBinary64(name));
     $('#modal_ds_folder').modal("show");
 }
 

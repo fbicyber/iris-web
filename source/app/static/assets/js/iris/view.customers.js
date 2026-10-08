@@ -153,14 +153,14 @@ $(document).ready(function() {
             {
                 "data": "user_name",
                 "render": function(data, type, row) {
-                    return data;
+                    return sanitizeHTML(data);
                 }
 
             },
             {
                 "data": "user_login",
                 "render": function(data, type, row) {
-                    return data;
+                    return sanitizeHTML(data);
                 }
             },
             {
@@ -179,26 +179,26 @@ $(document).ready(function() {
             {
                 "data": "asset_name",
                 "render": function(data, type, row) {
-                    return data;
+                    return sanitizeHTML(data);
                 }
             },
             {
                 "data": "asset_description",
                 "render": function(data, type, row) {
-                    return data;
+                    return sanitizeHTML(data);
                 }
 
             },
             {
                 "data": "asset_type",
                 "render": function(data, type, row) {
-                    return data.asset_name;
+                    return sanitizeHTML(data.asset_name);
                 }
             },
             {
                 "data": "asset_ip",
                 "render": function(data, type, row) {
-                    return data;
+                    return sanitizeHTML(data);
                 }
             },
             {
@@ -267,7 +267,7 @@ $(document).ready(function() {
                 "data": "state",
                 "render": function(data, type, row) {
                     if (data !== null) {
-                        return data.state_name;
+                        return sanitizeHTML(data.state_name);
                     } else {
                         return 'Unknown';
                     }
@@ -276,7 +276,7 @@ $(document).ready(function() {
             {
                 "data": "owner",
                 "render": function(data, type, row) {
-                    return data.user_name;
+                    return sanitizeHTML(data.user_name);
                 }
             }
         ],

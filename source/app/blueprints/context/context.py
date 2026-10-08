@@ -21,15 +21,16 @@ from flask import redirect
 from flask import request
 from flask_login import current_user
 
-from app import app
-from app import cache
-from app import db
+from flask import current_app as app
+from app.extensions import cache
+from app.extensions import db
 from app.datamgmt.context.context_db import ctx_search_user_cases
 from app.models.authorization import Permissions
 from app.models.cases import Cases
 from app.models.models import Client
 from app.util import ac_api_requires
 from app.util import not_authenticated_redirection_url
+from app.util import response_error
 from app.util import response_success
 
 ctx_blueprint = Blueprint(
@@ -48,8 +49,17 @@ def set_ctx():
     if not current_user.is_authenticated:
         return redirect(not_authenticated_redirection_url(request.full_path))
 
-    ctx = request.form.get('ctx')
-    ctx_h = request.form.get('ctx_h')
+    data = request.get_json(silent=True) or request.form
+    ctx = data.get('ctx')
+    ctx_h = data.get('ctx_h')
+
+    if not ctx:
+        return response_error("No case selected")
+
+    try:
+        ctx = int(ctx)
+    except (TypeError, ValueError):
+        return response_error("Invalid case id")
 
     current_user.ctx_case = ctx
     current_user.ctx_human_case = ctx_h

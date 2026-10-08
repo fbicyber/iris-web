@@ -18,7 +18,7 @@
 				<div class="row ml-2 mr-2">
 					<h2 class="pb-2">
 						<a href="/manage/customers?cid={{ session['current_case'].case_id }}" class="text-dark">Customers</a> > {{ customer.customer_name }} (#{{customer.customer_id}})</h2>
-					<button class="btn btn-light btn-sm ml-auto" onclick="customer_detail('{{ customer.customer_id }}');">Edit customer</button>
+					<button class="btn btn-light btn-sm ml-auto" onclick="customer_detail('{{ customer.customer_id }}');" aria-label="Edit customer">Edit customer</button>
 				</div>
 			</div>
 			<input id="customer_id" style="display:none;" value="{{ customer.customer_id }}"/>
@@ -130,7 +130,7 @@
 									<div class="col-12">
 										<div class="row">
 											<h3><strong><i class="ml-1 fa-regular fa-address-book mr-1"></i> Contacts</strong></h3>
-											<button class="btn btn-light btn-sm ml-auto" onclick="add_new_contact({{ customer.customer_id }});">Add Contact</button>
+											<button class="btn btn-light btn-sm ml-auto" onclick="add_new_contact({{ customer.customer_id }});" aria-label="Add contact">Add Contact</button>
 										</div>
 									</div>
 								</div>
@@ -140,7 +140,7 @@
 									{% for contact in contacts %}
 									<div class="contact-list-item">
 										<div class="contact-list-detail">
-											<span class="date float-right"><button class="btn btn-light btn-sm" onclick="edit_contact('{{ contact.id }}','{{ customer.customer_id }}');">Edit</button></span>
+											<span class="date float-right"><button class="btn btn-light btn-sm" onclick="edit_contact('{{ contact.id }}','{{ customer.customer_id }}');" aria-label="Edit contact">Edit</button></span>
 											<span class="h4">{{ contact.contact_name }}</span>
 											<p class="ml-2">
 											{% if contact.contact_role %}
@@ -178,7 +178,7 @@
 												<div class="card-title">Associated Users</div>
 											</div>
 											<div class="col">
-												<a class="btn btn-light btn-sm float-right" href="/manage/access-control">Manage</a>
+												<a class="btn btn-light btn-sm float-right" href="/manage/access-control" aria-label="Manage users">Manage</a>
 											</div>
 										</div>
 									</div>

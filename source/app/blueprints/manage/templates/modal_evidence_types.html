@@ -21,14 +21,14 @@
 
             {% if evidence_type.id %}
                 <button type="button" class="btn btn-outline-danger mt-5"
-                onclick="delete_evidence_type('{{ evidence_type.id }}');">Delete</button>
+                onclick="delete_evidence_type('{{ evidence_type.id }}');" aria-label="Delete evidence type">Delete</button>
                 <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_evidence_type">Update</button>
+                id="submit_new_evidence_type" aria-label="Update evidence type">Update</button>
 
             {% else %}
 
                 <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_evidence_type">Save</button>
+                id="submit_new_evidence_type" aria-label="Save evidence type">Save</button>
 
             {% endif %}
             </div>

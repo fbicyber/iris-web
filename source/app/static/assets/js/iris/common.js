@@ -20,6 +20,56 @@ let current_cid = null;
 var full_assets = null;
 var full_iocs = null;
 
+const asset_data_template = {
+    'asset_name': "",
+    'analysis_status_id': 1,
+    'asset_compromise_status_id': 0,
+    'asset_description': "",
+    'asset_domain': "",
+    'asset_external_ip': "",
+    'asset_ip': "",
+    'asset_info': "",
+    'asset_tags': "",
+    'asset_type_id': "1"
+};
+
+const ioc_data_template = {
+    'ioc_value': "",
+    'ioc_tags': "",
+    'ioc_description': "",
+    'ioc_tlp_id': 2,
+    'ioc_type_id': 1
+};
+
+function get_selected_rows_item_ids(table_selected_rows, item_type){
+    /**
+     *  Gather all selected rows 
+     *  Get the item ids of the selected rows
+     * 
+     *  Return: a Set() of selected rows's item ids
+     */
+
+    var item_id_set = new Set();
+
+    // adding item ids from TABLE selected rows to the set, it should NOT add duplicates
+    table_selected_rows.each(function(item){
+        if (item_type == "asset") {
+            item_id_set.add(item.asset_id.toString());
+        }
+        else if (item_type == "ioc") {
+            item_id_set.add(item.ioc_id.toString());
+        }
+        else if (item_type == "rfile") {
+            item_id_set.add(item.id.toString());
+        }
+        else {
+            notify_error(`Invalid item type when deleting or selecting multiple rows: ${item_type}`)
+        }
+    });
+
+    return item_id_set;
+}
+
 function get_case_assets_from_external(){
     /**
      * Short query to get list of all assets, to be accessible outside of the assets tab
@@ -226,9 +276,33 @@ function ellipsis_field( data, cutoff, wordbreak ) {
     return anchor.prop('outerHTML');
 }
 
+function parse_json_string(data){
+    // check if data is a string and if it could be a JSON string
+    let dataContent = JSON.stringify(data);
+    if (typeof data === 'string') {
+        try {
+            // parsing the string to check if it's valid JSON
+            const parsedData = JSON.parse(data);
+            
+            // if JSON.parse doesn't throw an error, we have a valid JSON, stringify it
+            dataContent = JSON.stringify(data);
+        } catch (e) {
+            // if JSON.parse throws an error, it's not valid JSON, just use the string as-is
+            dataContent = data;
+        }
+    } else if (typeof data === 'object'){
+        // if data is not a string, treat it as an object and stringify it
+        dataContent = JSON.stringify(data, null, 2);
+    }
+    return dataContent;
+}
+
 function ret_obj_dt_description(data) {
     let anchor = $('<span>');
-    let dataContent = typeof data === 'object' ? JSON.stringify(data) : data;
+    
+    // check if data is a string and if it could be a JSON string
+    let dataContent = parse_json_string(data);
+
     anchor.attr('data-toggle', 'popover')
         .attr('data-trigger', 'hover')
         .attr('title', 'Description')
@@ -288,6 +362,40 @@ function ellipsis_field_raw( data, cutoff, wordbreak ) {
     }
 
     return shortened + '…';
+}
+
+function insert_list_in_editor(editorInstance, listType) {
+    if (!editorInstance) {
+        return;
+    }
+
+    let range = editorInstance.getSelectionRange();
+    let selectedText = editorInstance.session.getTextRange(range);
+
+    if (!selectedText) {
+        if (listType === 'numbered') {
+            editorInstance.insertSnippet('\n1. \n2. \n3. ');
+        } else {
+            editorInstance.insertSnippet('\n- \n- \n- ');
+        }
+        editorInstance.focus();
+        return;
+    }
+
+    let normalizedText = selectedText.replace(/\r\n?/g, '\n');
+    let lines = normalizedText.split('\n');
+    let outputLines = lines.map(function(line, index) {
+        let match = line.match(/^(\s*)(.*)$/);
+        let indent = match ? match[1] : '';
+        let content = match ? match[2] : line;
+        if (listType === 'numbered') {
+            return `${indent}${index + 1}. ${content}`;
+        }
+        return `${indent}- ${content}`;
+    });
+
+    editorInstance.session.replace(range, outputLines.join('\n'));
+    editorInstance.focus();
 }
 
 function propagate_form_api_errors(data_error) {
@@ -408,6 +516,29 @@ function notify_success(message) {
         },
         z_index: 2000,
         timer: 2500,
+        animate: {
+            enter: 'animated fadeIn',
+            exit: 'animated fadeOut'
+        }
+    });
+}
+
+function notify_success_sticky(message) {
+    let p = $('<p>')
+    p.text(message);
+    $.notify({
+        icon: 'fas fa-check',
+        message: p.prop('outerHTML')
+    }, {
+        type: 'success',
+        placement: {
+            from: 'bottom',
+            align: 'left'
+        },
+        z_index: 2000,
+        allow_dismiss: true,
+        delay: 0,
+        timer: 0,
         animate: {
             enter: 'animated fadeIn',
             exit: 'animated fadeOut'
@@ -800,8 +931,12 @@ function capitalizeFirstLetter(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
+function build_object_link_md(data_type, node_id){
+    return `[<i class="fa-solid fa-tag"></i> ${capitalizeFirstLetter(data_type)} #${node_id}](${buildShareLink(node_id)})`
+}
+
 function copy_object_link_md(data_type, node_id){
-    let link = `[<i class="fa-solid fa-tag"></i> ${capitalizeFirstLetter(data_type)} #${node_id}](${buildShareLink(node_id)})`
+    let link = build_object_link_md(data_type, node_id)
     navigator.clipboard.writeText(link).then(function() {
         notify_success('MD link copied');
     }, function(err) {
@@ -819,9 +954,9 @@ function copy_text_clipboardb(data){
     });
 }
 
-function copy_text_clipboard(data){
+function copy_text_clipboard(data, success_message){
     navigator.clipboard.writeText(data).then(function() {
-        notify_success('Copied');
+        notify_success(success_message || 'Copied');
     }, function(err) {
         notify_error('Can\'t copy link. I printed it in console.');
         console.error(err);
@@ -869,7 +1004,7 @@ function load_dim_limited_tasks(){
 
             entry =	`<li class="feed-item ${api_flag}" title='${title}'>
                     <time class="date" datetime="${js_data[index].activity_date}">${js_data[index].date_done}</time>
-                    <span class="text" title="${js_data[index].task_id}"><a href="#" onclick='dim_task_status("${js_data[index].task_id}");return false;'>${js_data[index].module}</a> - ${js_data[index].user}</span>
+                    <span class="text" title="${js_data[index].task_id}"><a href="#" onclick='dim_task_status("${js_data[index].task_id}");return false;'>${sanitizeHTML(js_data[index].module)}</a> - ${sanitizeHTML(js_data[index].user)}</span>
                     </li>`
             $('#dim_tasks_feed').append(entry);
         }
@@ -960,7 +1095,7 @@ function load_menu_mod_options_modal(element_id, data_type, anchor) {
 }
 
 function get_row_id(row) {
-    let ids_map = ["ioc_id","asset_id","task_id","id"];
+    let ids_map = ["event_id","ioc_id","asset_id","task_id","id"];
     for (let id in ids_map) {
         if (row[ids_map[id]] !== undefined) {
             return row[ids_map[id]];
@@ -1172,7 +1307,7 @@ function get_avatar_initials(name, small, onClickFunction, xsmall) {
     const onClick = onClickFunction ? `onclick="${onClickFunction}"` : '';
 
     if (avatarCache[name] && avatarCache[name][small ? 'small' : 'large']) {
-        return `<div class="avatar ${av_size}" title="${name}" ${onClick}>
+        return `<div class="avatar ${av_size}" title="${escapeHtml(name)}" ${onClick}>
             ${avatarCache[name][small ? 'small' : 'large']}
         </div>`;
     }
@@ -1193,7 +1328,7 @@ function get_avatar_initials(name, small, onClickFunction, xsmall) {
     const avatarColor = get_avatar_color(snum);
 
     const avatarHTMLin = `<span class="avatar-title avatar-iris rounded-circle" style="background-color:${avatarColor}; cursor:pointer;">${initials}</span>`
-    const avatarHTMLout = `<div class="avatar ${av_size}" title="${name}" ${onClick}>
+    const avatarHTMLout = `<div class="avatar ${av_size}" title="${escapeHtml(name)}" ${onClick}>
         ${avatarHTMLin}
     </div>`;
 
@@ -1242,8 +1377,8 @@ function get_editor_headers(editor_instance, save, edition_btn) {
                 <div class="btn btn-sm btn-light mr-1" title="CTRL+\`" onclick="${editor_instance}.insertSnippet`+"('```${1:$SELECTION}```');"+`${editor_instance}.focus();"><i class="fa-solid fa-code"></i></div>
                 <div class="btn btn-sm btn-light mr-1" title="CTRL-K" onclick="${editor_instance}.insertSnippet`+"('[${1:$SELECTION}](URL)');"+`${editor_instance}.focus();"><i class="fa-solid fa-link"></i></div>
                 <div class="btn btn-sm btn-light mr-1" title="Insert table" onclick="${editor_instance}.insertSnippet`+"('|\\t|\\t|\\t|\\n|--|--|--|\\n|\\t|\\t|\\t|\\n|\\t|\\t|\\t|');"+`${editor_instance}.focus();"><i class="fa-solid fa-table"></i></div>
-                <div class="btn btn-sm btn-light mr-1" title="Insert bullet list" onclick="${editor_instance}.insertSnippet`+"('\\n- \\n- \\n- ');"+`${editor_instance}.focus();"><i class="fa-solid fa-list"></i></div>
-                <div class="btn btn-sm btn-light mr-1" title="Insert numbered list" onclick="${editor_instance}.insertSnippet`+"('\\n1. a  \\n2. b  \\n3. c  ');"+`${editor_instance}.focus();"><i class="fa-solid fa-list-ol"></i></div>
+                <div class="btn btn-sm btn-light mr-1" title="Insert bullet list" onclick="insert_list_in_editor(${editor_instance}, 'bullet');"><i class="fa-solid fa-list"></i></div>
+                <div class="btn btn-sm btn-light mr-1" title="Insert numbered list" onclick="insert_list_in_editor(${editor_instance}, 'numbered');"><i class="fa-solid fa-list-ol"></i></div>
                 <div class="btn btn-sm btn-transparent mr-1" title="Help" onclick="get_md_helper_modal();"><i class="fa-solid fa-question-circle"></i></div>
 
     `
@@ -1267,6 +1402,21 @@ function goto_case_number() {
 }
 
 
+/*
+ * The contextualActions plugin only ever hands the action callback the single
+ * right-clicked row. The DataTable's real (multi) selection is still available
+ * though, so we re-query it here to let context-menu actions operate on every
+ * selected row. Falls back to the rows the plugin provided if nothing is
+ * currently marked as selected.
+ */
+function get_menu_selected_rows(table, fallback_rows) {
+    let selected = table.rows({ selected: true }).data().toArray();
+    if (selected && selected.length > 0) {
+        return selected;
+    }
+    return fallback_rows || [];
+}
+
 function load_menu_mod_options(data_type, table, deletion_fn, additionalOptions = []) {
     var actionOptions = {
         classes: [],
@@ -1276,10 +1426,10 @@ function load_menu_mod_options(data_type, table, deletion_fn, additionalOptions 
             xoffset: -10,
             yoffset: -10,
             headerRenderer: function (rows) {
-                if (rows.length > 1) {
-                    return rows.length + ' items selected';
+                let count = get_menu_selected_rows(table, rows).length;
+                if (count > 1) {
+                    return count + ' items selected';
                 } else {
-                    let row = rows[0];
                     return 'Quick action';
                 }
             },
@@ -1309,11 +1459,13 @@ function load_menu_mod_options(data_type, table, deletion_fn, additionalOptions 
                 actionOptions.items.push({
                     type: 'option',
                     title: 'Share',
-                    multi: false,
+                    multi: true,
+                    multiTitle: 'Share',
                     iconClass: 'fas fa-share',
                     action: function(rows) {
-                        let row = rows[0];
-                        copy_object_link(get_row_id(row));
+                        let selected = get_menu_selected_rows(table, rows);
+                        let links = selected.map(row => buildShareLink(get_row_id(row)));
+                        copy_text_clipboard(links.join('\n'), 'Shared link(s) copied');
                     }
                 });
 
@@ -1322,8 +1474,19 @@ function load_menu_mod_options(data_type, table, deletion_fn, additionalOptions 
                     title: 'Comment',
                     multi: false,
                     iconClass: 'fas fa-comments',
+                    // Comment only makes sense on a single item. isDisabled greys
+                    // the entry out when more than one row is selected...
+                    isDisabled: function() {
+                        return get_menu_selected_rows(table, []).length > 1;
+                    },
                     action: function(rows) {
-                        let row = rows[0];
+                        // ...and this guard keeps it non-actionable, since the
+                        // plugin still fires the click of a greyed-out item.
+                        let selected = get_menu_selected_rows(table, rows);
+                        if (selected.length !== 1) {
+                            return;
+                        }
+                        let row = selected[0];
                         if (data_type in datatype_map) {
                             comment_element(get_row_id(row), datatype_map[data_type]);
                         }
@@ -1333,22 +1496,26 @@ function load_menu_mod_options(data_type, table, deletion_fn, additionalOptions 
                 actionOptions.items.push({
                     type: 'option',
                     title: 'Markdown Link',
-                    multi: false,
+                    multi: true,
+                    multiTitle: 'Markdown Link',
                     iconClass: 'fa-brands fa-markdown',
                     action: function(rows) {
-                        let row = rows[0];
-                        copy_object_link_md(data_type, get_row_id(row));
+                        let selected = get_menu_selected_rows(table, rows);
+                        let links = selected.map(row => build_object_link_md(data_type, get_row_id(row)));
+                        copy_text_clipboard(links.join('\n'), 'MD link(s) copied');
                     }
                 });
 
                 actionOptions.items.push({
                     type: 'option',
                     title: 'Copy',
-                    multi: false,
+                    multi: true,
+                    multiTitle: 'Copy',
                     iconClass: 'fa-regular fa-copy',
                     action: function(rows) {
-                        let row = rows[0];
-                        copy_text_clipboard(get_row_value(row));
+                        let selected = get_menu_selected_rows(table, rows);
+                        let values = selected.map(row => get_row_value(row)).filter(v => v !== null && v !== undefined);
+                        copy_text_clipboard(values.join('\n'));
                     }
                 });
 
@@ -1386,12 +1553,30 @@ function load_menu_mod_options(data_type, table, deletion_fn, additionalOptions 
                     actionOptions.items.push({
                         type: 'option',
                         title: 'Delete',
-                        multi: false,
+                        multi: true,
+                        multiTitle: 'Delete',
                         iconClass: 'fas fa-trash',
                         contextMenuClasses: ['text-danger'],
                         action: function(rows) {
-                            let row = rows[0];
-                            deletion_fn(get_row_id(row));
+                            let selected = get_menu_selected_rows(table, rows);
+                            let ids = selected.map(row => get_row_id(row));
+                            if (ids.length === 0) {
+                                return;
+                            }
+                            if (ids.length === 1) {
+                                // Single item: keep the deletion fn's own per-item prompt.
+                                deletion_fn(ids[0]);
+                                return;
+                            }
+                            // Multiple items: one consolidated confirmation, then
+                            // delete each while skipping the per-item prompt.
+                            do_deletion_prompt("You are about to delete " + ids.length +
+                                " items.\nThere is no coming back.", true)
+                            .then((doDelete) => {
+                                if (doDelete) {
+                                    ids.forEach(id => deletion_fn(id, true));
+                                }
+                            });
                         }
                     });
                 }
@@ -1559,7 +1744,39 @@ function load_add_case() {
 }
 
 /* Submit event handler for new case */
+function clear_case_required_feedback() {
+    $('#form_new_case [data-required-for]').text('');
+}
+
+function validate_required_case_fields() {
+    let has_missing_required = false;
+    clear_case_required_feedback();
+
+    $('#form_new_case [required]').each(function () {
+        const field = $(this);
+        const field_id = field.attr('id');
+        if (!field_id) {
+            return;
+        }
+
+        const raw_value = field.val();
+        const field_value = Array.isArray(raw_value) ? raw_value.join('') : raw_value;
+        const is_empty = field_value === null || field_value === undefined || $.trim(String(field_value)) === '';
+
+        if (is_empty) {
+            $(`#form_new_case [data-required-for="${field_id}"]`).text('This field is required.');
+            has_missing_required = true;
+        }
+    });
+
+    return !has_missing_required;
+}
+
 function submit_new_case() {
+    if (!validate_required_case_fields()) {
+        notify_error('Please fill all required fields.');
+        return false;
+    }
 
     let data_sent = $('form#form_new_case').serializeObject();
     let ret = get_custom_attributes_fields();
@@ -1836,16 +2053,33 @@ function userWhoamiRequest(force = false) {
   }
 }
 
+function toggle_user_theme(toggleButton) {
+    const $toggle = $(toggleButton);
+    const currentIsDark = $toggle.attr('data-theme-dark') === 'true';
+    const nextTheme = currentIsDark ? 'light' : 'dark';
+
+    $toggle.addClass('disabled');
+    post_request_api('/user/theme/set/' + nextTheme)
+        .done((data) => {
+            if (notify_auto_api(data, true)) {
+                location.reload(true);
+            }
+        })
+        .always(() => {
+            $toggle.removeClass('disabled');
+        });
+}
+
 $('.toggle-sidebar').on('click', function() {
     if ($('.wrapper').hasClass('sidebar_minimize')) {
         $('.wrapper').removeClass('sidebar_minimize');
-        get_request_api('/user/mini-sidebar/set/false')
+        post_request_api('/user/mini-sidebar/set/false')
             .then((data) => {
                 notify_auto_api(data, true);
             });
     } else {
         $('.wrapper').addClass('sidebar_minimize');
-        get_request_api('/user/mini-sidebar/set/true')
+        post_request_api('/user/mini-sidebar/set/true')
             .then((data) => {
                 notify_auto_api(data, true);
             });
@@ -1888,9 +2122,15 @@ function do_deletion_prompt(message, force_prompt=false) {
 }
 
 function escapeHtml(text) {
-  let parser = new DOMParser();
-  let escapedDoc = parser.parseFromString(text, 'text/html');
-  return escapedDoc.documentElement.textContent;
+  if (text === undefined || text === null) {
+    return '';
+  }
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function toBinary64(string) {
@@ -1962,7 +2202,8 @@ $(document).ready(function(){
     var data_sent = new Object();
     data_sent.ctx = $('#user_context').val();
     data_sent.ctx_h = $("#user_context option:selected").text();
-    post_request_api('/context/set?cid=' + data_sent.ctx, data_sent)
+    data_sent.csrf_token = $('#csrf_token').val();
+    post_request_api('/context/set?cid=' + data_sent.ctx, JSON.stringify(data_sent))
     .done((data) => {
             if(notify_auto_api(data, true)) {
                 $('#modal_switch_context').modal('hide');
@@ -1997,6 +2238,11 @@ $(document).ready(function(){
 
     $('.modal-dialog').draggable({
         handle: ".modal-header"
+    });
+
+    $(document).on('click', '.theme-mode-toggle', function(e) {
+        e.preventDefault();
+        toggle_user_theme(this);
     });
 
     $('#form_add_tasklog').submit(function () {
@@ -2052,4 +2298,26 @@ $(document).ready(function(){
     userWhoamiRequest();
 });
 
-
+// Export functions for testing (only in Node.js/Jest environment)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        setCookie,
+        getCookie,
+        eraseCookie,
+        clear_api_error,
+        ellipsis_field,
+        parse_json_string,
+        isHTML,
+        cleanHTMLTags,
+        render_date,
+        get_current_datetime_iso,
+        escapeHtml,
+        toBinary64,
+        fromBinary64,
+        get_selected_rows_item_ids,
+        get_case_assets_from_external,
+        get_case_iocs_from_external,
+        addAssetsTabToExcel,
+        addIocsTabToExcel
+    };
+}

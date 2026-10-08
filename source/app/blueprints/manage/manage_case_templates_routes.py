@@ -25,7 +25,7 @@ from flask import url_for
 from flask_login import current_user
 from marshmallow import ValidationError
 
-from app import db
+from app.extensions import db
 from app.datamgmt.manage.manage_case_templates_db import get_case_templates_list
 from app.datamgmt.manage.manage_case_templates_db import get_case_template_by_id
 from app.datamgmt.manage.manage_case_templates_db import validate_case_template
@@ -117,34 +117,9 @@ def case_template_modal(cur_id, caseid, url_redir):
 def add_template_modal():
     case_template = CaseTemplate()
     form = CaseTemplateForm()
-    form.case_template_json.data = {
-        "name": "Template name",
-        "display_name": "Template Display Name",
-        "description": "Template description",
-        "author": "YOUR NAME",
-        "classification": "known-template-classification",
-        "title_prefix": "[PREFIX]",
-        "summary": "Summary to be set",
-        "tags": ["ransomware","malware"],
-        "tasks": [
-            {
-                "title": "Task 1",
-                "description": "Task 1 description",
-                "tags": ["tag1", "tag2"]
-            }
-        ],
-        "note_directories": [
-            {
-                "title": "Note group 1",
-                "notes": [
-                    {
-                        "title": "Note 1",
-                        "content": "Note 1 content"
-                    }
-                ]
-            }
-        ]
-    }
+
+    default_case_template_json = get_default_case_template()
+    form.case_template_json.data = default_case_template_json
 
     return render_template("modal_case_template.html", form=form, case_template=case_template)
 
@@ -250,3 +225,72 @@ def delete_case_template(case_template_id, caseid):
 
     track_activity(f"Case template '{case_template_name}' deleted", caseid=caseid, ctx_less=True)
     return response_success("Deleted successfully")
+
+
+def get_default_case_template():
+    """
+    Helper function to return default case template, to be reused in various functions
+    """
+    
+    default_case_template = {
+        "name": "Default Template name",
+        "display_name": "Default Template Display name",
+        "description": "Template description",
+        "author": "YOUR NAME",
+        "classification": "known-template-classification",
+        "title_prefix": "[PREFIX]",
+        "summary": "Summary to be set",
+        "tags": ["ransomware","malware"],
+        "tasks": [
+            {
+                "title": "Task 1",
+                "description": "Task 1 description",
+                "tags": ["tag1", "tag2"]
+            }
+        ],
+        "note_directories": [
+            {
+                "title": "Report Narrative",
+                "notes": [
+                    {
+                        "title": "Note 1",
+                        "content": "Note 1 content"
+                    }
+                ]
+            }
+        ]
+    }
+
+    return default_case_template
+
+
+def create_default_case_template(user):
+    """
+    Create a default case template for the given user
+    """
+
+    # Get default case template json
+    case_template_dict = get_default_case_template()
+    case_template_dict["title_prefix"] = ""
+    case_template_dict["tags"] = []
+
+    # verify default case templates, just in case
+    try:
+        logs = validate_case_template(case_template_dict, update=False)        
+        if logs is not None:
+            return response_error("Found errors in case template", data=logs)
+    except Exception as e:
+        return response_error("Found errors in case template", data=str(e))
+
+    # create new case template schema
+    try:
+        case_template_dict["created_by_user_id"] = user.id
+        case_template_data = CaseTemplateSchema().load(case_template_dict)
+        case_template = CaseTemplate(**case_template_data)
+        db.session.add(case_template)
+        db.session.commit()
+    except Exception as e:
+        return response_error("Could not add case template into DB", data=str(e))
+
+   
+    return CaseTemplateSchema().dump(case_template)

@@ -18,7 +18,7 @@
 from flask_login import current_user
 from sqlalchemy import and_
 
-from app import db
+from app.extensions import db
 from app.datamgmt.states import update_ioc_state
 from app.iris_engine.access_control.utils import ac_get_fast_user_cases_access
 from app.models import CaseEventsIoc
@@ -279,7 +279,7 @@ def get_tlps_dict():
     return tlpDict
 
 
-def get_case_ioc_comments(ioc_id):
+def get_case_ioc_comments(ioc_id, caseid):
     return Comments.query.filter(
         IocComments.comment_ioc_id == ioc_id
     ).with_entities(
@@ -287,6 +287,11 @@ def get_case_ioc_comments(ioc_id):
     ).join(
         IocComments,
         Comments.comment_id == IocComments.comment_id
+    ).join(
+        IocLink,
+        IocLink.ioc_id == IocComments.comment_ioc_id
+    ).filter(
+        IocLink.case_id == caseid
     ).order_by(
         Comments.comment_date.asc()
     ).all()
@@ -313,7 +318,7 @@ def get_case_iocs_comments_count(iocs_list):
     ).all()
 
 
-def get_case_ioc_comment(ioc_id, comment_id):
+def get_case_ioc_comment(ioc_id, comment_id, caseid):
     return (IocComments.query.filter(
         IocComments.comment_ioc_id == ioc_id,
         IocComments.comment_id == comment_id
@@ -326,7 +331,9 @@ def get_case_ioc_comment(ioc_id, comment_id):
         User.name,
         User.user
     ).join(IocComments.comment)
-            .join(Comments.user).first())
+            .join(Comments.user)
+            .join(IocLink, IocLink.ioc_id == IocComments.comment_ioc_id)
+            .filter(IocLink.case_id == caseid).first())
 
 
 def delete_ioc_comment(ioc_id, comment_id):

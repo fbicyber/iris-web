@@ -16,22 +16,13 @@
 #  along with this program; if not, write to the Free Software Foundation,
 #  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-from celery import Celery
+from app.extensions import celery
 
-
-def make_celery(app):
-    celery = Celery(
-        app.import_name,
-        config_source=app.config.get('CELERY')
-    )
-
+def init_celery(app):
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):
             with app.app_context():
                 return self.run(*args, **kwargs)
 
     celery.Task = ContextTask
-
-    return celery
-
 

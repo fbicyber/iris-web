@@ -19,14 +19,15 @@
 #  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 import datetime
+import logging
 from pathlib import Path
 
 from flask_login import current_user
 from sqlalchemy import and_
 from sqlalchemy import func
 
-from app import app
-from app import db
+from flask import current_app as app
+from app.extensions import db
 from app.datamgmt.case.case_iocs_db import add_ioc_link
 from app.models import CaseReceivedFile
 from app.models import DataStoreFile
@@ -35,6 +36,7 @@ from app.models import Ioc
 from app.models import IocType
 from app.models import Tlp
 
+log = logging.getLogger(__name__)
 
 def datastore_get_root(cid):
     dsp_root = DataStorePath.query.filter(
@@ -180,7 +182,7 @@ def datastore_add_child_node(parent_node, folder_name, cid):
             DataStorePath.path_case_id == cid
         ).first()
 
-    except Exception as e:
+    except Exception:
         return True, f'Unable to request datastore for parent node : {parent_node}', None
 
     if dsp_base is None:
@@ -206,7 +208,7 @@ def datastore_rename_node(parent_node, folder_name, cid):
             DataStorePath.path_case_id == cid
         ).first()
 
-    except Exception as e:
+    except Exception:
         return True, f'Unable to request datastore for parent node : {parent_node}', None
 
     if dsp_base is None:
@@ -226,7 +228,7 @@ def datastore_delete_node(node_id, cid):
             DataStorePath.path_case_id == cid
         ).first()
 
-    except Exception as e:
+    except Exception:
         return True, f'Unable to request datastore for parent node : {node_id}'
 
     if dsp_base is None:
@@ -279,6 +281,26 @@ def datastore_get_path_node(node_id, cid):
         DataStorePath.path_id == node_id,
         DataStorePath.path_case_id == cid
     ).first()
+
+
+def datastore_is_path_descendant(path_id, potential_ancestor_id, cid):
+    """Return True if path_id is potential_ancestor_id itself, or a descendant of it,
+    within the case's datastore tree. Used to reject folder moves that would create a
+    parent cycle (moving a folder into itself or one of its own subfolders).
+    """
+    current_id = path_id
+    visited = set()
+    while current_id and current_id not in visited:
+        if current_id == potential_ancestor_id:
+            return True
+        visited.add(current_id)
+        node = DataStorePath.query.filter(
+            DataStorePath.path_id == current_id,
+            DataStorePath.path_case_id == cid
+        ).with_entities(DataStorePath.path_parent_id).first()
+        current_id = node[0] if node else None
+
+    return False
 
 
 def datastore_get_interactive_path_node(cid):
@@ -339,8 +361,14 @@ def datastore_delete_file(cur_id, cid):
 
     fln = Path(dsf.file_local_name)
     if fln.is_file():
-        fln.unlink(missing_ok=True)
-
+        # Ensure the file is from the datastore directory
+        datastore_path = Path(app.config['DATASTORE_PATH']).resolve()
+        file_path = fln.resolve()
+        if datastore_path in file_path.parents or datastore_path == file_path:
+            fln.unlink(missing_ok=True)
+        else:
+            log.warning(f"File {file_path} physically not deleted - attempted deletion outside datastore directory.")
+            
     db.session.delete(dsf)
     db.session.commit()
 
@@ -407,7 +435,15 @@ def datastore_get_local_file_path(file_id, caseid):
     if dsf is None:
         return True, 'Invalid DS file ID for this case'
 
-    return False, dsf
+    # Ensure the path is within the datastore directory
+    datastore_path = Path(app.config['DATASTORE_PATH']).resolve()
+    file_path = Path(dsf.file_local_name).resolve()
+    if datastore_path in file_path.parents or datastore_path == file_path:
+        return False, dsf
+    else:
+        # The file path is outside the datastore directory, which is not allowed
+        log.warning(f"File {file_path} not found in datastore - attempted access outside datastore directory.")
+        return True, None
 
 
 def datastore_filter_tree(filter_d, caseid):

@@ -36,8 +36,8 @@ from sqlalchemy import and_
 from openpyxl import Workbook, load_workbook
 from io import BytesIO
 
-from app import db
-from app import app
+from app.extensions import db
+from flask import current_app as app
 from app.blueprints.case.case_comments import case_comment_update
 from app.datamgmt.case.case_assets_db import get_asset_by_name
 from app.datamgmt.case.case_events_db import add_comment_to_event, get_category_by_name, get_default_category
@@ -112,24 +112,24 @@ def case_timeline(caseid, url_redir):
     form.timezone.choices = all_tz_for_form
 
     # get current local timezone from case
-    tz = get_case_local_timezone(caseid)
+    tz_name = get_case_local_timezone(caseid)
     tz_id = 0
     
     # if no local timezone exists for this case, default to UTC which has id 12
-    if not tz:
-        tz = "UTC"
-        set_case_local_timezone(caseid, tz)
+    if not tz_name:
+        tz_name = "UTC"
+        set_case_local_timezone(caseid, tz_name)
         tz_id = 0
         app.logger.debug("No local timezone found in db, defaulting to UTC")
     else:
         # if found timezone name in db, find the corresponding id
         for index in all_tz:
-            if all_tz[index]["timezone"] == tz:
+            if all_tz[index]["timezone"] == tz_name:
                 tz_id = index
-                app.logger.debug(f"Found index {index} for timezone {tz}")
+                app.logger.debug(f"Found index {index} for timezone {tz_name}")
                 break
 
-    timezone = {"id": tz_id, "timezone": tz, "offset" : all_tz[tz_id]["offset"]}
+    timezone = {"id": tz_id, "timezone": tz_name, "offset" : all_tz[tz_id]["offset"]}
     return render_template("case_timeline.html", case=case, form=form, timezone=timezone)
 
 
@@ -204,7 +204,6 @@ def case_timeline_timezone(caseid, url_redir):
         CaseEventsIoc.ioc
     ).all()
 
-    tim = []
     for row in timeline:
         ras = row._asdict()
 
@@ -872,7 +871,7 @@ def case_delete_event(cur_id, caseid):
     return response_success('Event ID {} deleted'.format(cur_id))
 
 
-@case_timeline_blueprint.route('/case/timeline/events/flag/<int:cur_id>', methods=['GET'])
+@case_timeline_blueprint.route('/case/timeline/events/flag/<int:cur_id>', methods=['POST'])
 @ac_api_case_requires(CaseAccessLevel.full_access)
 def event_flag(cur_id, caseid):
     event = get_case_event(cur_id, caseid)
@@ -976,6 +975,21 @@ def case_edit_event(cur_id, caseid):
         event.event_date = (event.event_date).astimezone(local_tz)
         event.event_date = (event.event_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
 
+        if request_data.get(u'event_end_date'):
+            event.event_end_date, event.event_end_date_wtz = event_schema.validate_end_date(
+                request_data.get(u'event_end_date'),
+                request_data.get(u'event_end_tz')
+            )
+            event.event_end_date_wtz = (event.event_end_date).astimezone(tz.UTC)
+            event.event_end_date_wtz = (event.event_end_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            event.event_end_date = (event.event_end_date).astimezone(local_tz)
+            event.event_end_date = (event.event_end_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            event.event_end_tz = request_data.get(u'event_end_tz')
+        else:
+            event.event_end_date = None
+            event.event_end_date_wtz = None
+            event.event_end_tz = None
+
         event.case_id = caseid
         add_obj_history_entry(event, 'updated')
 
@@ -1050,6 +1064,10 @@ def case_add_event(caseid):
 
         event_schema = EventSchema()
         request_data = call_modules_hook('on_preload_event_create', data=request.get_json(), caseid=caseid)
+        # Never load a client-supplied primary key on create: marshmallow-sqlalchemy would
+        # fetch and mutate the existing row instead of creating a new one, letting a caller
+        # hijack an event belonging to another case.
+        request_data.pop('event_id', None)
 
         event = event_schema.load(request_data)
 
@@ -1069,6 +1087,21 @@ def case_add_event(caseid):
         # convert input timestamp to LOCAL TZ, then adapt format into string using strftime
         event.event_date = (event.event_date).astimezone(local_tz)
         event.event_date = (event.event_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+        if request_data.get(u'event_end_date'):
+            event.event_end_date, event.event_end_date_wtz = event_schema.validate_end_date(
+                request_data.get(u'event_end_date'),
+                request_data.get(u'event_end_tz')
+            )
+            event.event_end_date_wtz = (event.event_end_date).astimezone(tz.UTC)
+            event.event_end_date_wtz = (event.event_end_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            event.event_end_date = (event.event_end_date).astimezone(local_tz)
+            event.event_end_date = (event.event_end_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            event.event_end_tz = request_data.get(u'event_end_tz')
+        else:
+            event.event_end_date = None
+            event.event_end_date_wtz = None
+            event.event_end_tz = None
   
         event.case_id = caseid
         event.event_added = datetime.utcnow()
@@ -1111,7 +1144,7 @@ def case_add_event(caseid):
         return response_error(msg="Data error", data=e.normalized_messages())
 
 
-@case_timeline_blueprint.route('/case/timeline/events/duplicate/<int:cur_id>', methods=['GET'])
+@case_timeline_blueprint.route('/case/timeline/events/duplicate/<int:cur_id>', methods=['POST'])
 @ac_api_case_requires(CaseAccessLevel.full_access)
 def case_duplicate_event(cur_id, caseid):
     call_modules_hook('on_preload_event_duplicate', data=cur_id, caseid=caseid)
@@ -1186,14 +1219,14 @@ def case_event_date_convert(caseid):
     parsed_date = parse_bf_date_format(date_value)
 
     if parsed_date:
-        tz = parsed_date.strftime("%z")
+        tz_name = parsed_date.strftime("%z")
 
         
         data = {
             "date": parsed_date.strftime("%Y-%m-%d"),
-            "time": parsed_date.strftime("%H:%M:%S.%f")[:-3],
-            "tz": tz if tz else "+00:00",
-            "msg": "" if tz else "WARNING! No timezone was included in the timestamp, defaulting timezone to UTC."
+            "time": parsed_date.strftime("%H:%M:%S.%f"),
+            "tz": tz_name if tz_name else "+00:00",
+            "msg": "" if tz_name else "WARNING! No timezone was included in the timestamp, defaulting timezone to UTC."
         }        
         return response_success("Date parsed", data=data)
 
@@ -1210,7 +1243,7 @@ def case_events_upload_excel(caseid):
         return response_error(msg="Unable to get data imported from Excel", data={"Exception": f"Unable to get data imported from Excel"})
 
     app.logger.info("Starting Excel import")
-    event_fields = [
+    required_event_fields = [
         "event_id",
         "event_date",
         "event_tz",
@@ -1223,6 +1256,12 @@ def case_events_upload_excel(caseid):
         "event_iocs",
         "event_tags",
     ]
+    optional_event_fields = [
+        "event_end_date",
+        "event_end_tz",
+        "event_end_date_wtz",
+    ]
+    event_fields = required_event_fields + optional_event_fields
     list_of_errors = []
 
     # excel data is received as an array of numbers, actually uint8 converted by js
@@ -1235,7 +1274,7 @@ def case_events_upload_excel(caseid):
     for i, row in enumerate(worksheet):
         if i == 0:
             headers = [cell.value for cell in row]
-            missing_fields = [fld for fld in event_fields if fld not in headers]
+            missing_fields = [fld for fld in required_event_fields if fld not in headers]
             if len(missing_fields) > 0:
                 msg = f"Bad XLSX Fields Mapping. Fields missing: [{','.join(missing_fields)}]"
                 data = {"error_code": "BAD_FIELDS_MAPPING", "expected": ','.join(event_fields), "found": ','.join(headers),
@@ -1264,7 +1303,7 @@ def case_events_upload_excel(caseid):
             event_title = str(row[headers.index('event_title')])
             event_assets = row[headers.index('event_assets')]
             event_iocs = row[headers.index('event_iocs')]
-            event_tags = row[headers.index('event_tags')]
+            event_tags_input = row[headers.index('event_tags')]
             event_category_name = row[headers.index('event_category')]
             
             if event_title is None or len(event_title) == 0:
@@ -1316,10 +1355,14 @@ def case_events_upload_excel(caseid):
                 row_to_save['event_category_id'] = DEFAULT_CAT_ID
 
             row_to_save['event_tags'] = ""
-            if event_tags and event_tags != '':
-                row_to_save['event_tags'] = ','.join(event_tags.split('|'))
+            if event_tags_input and event_tags_input != '':
+                row_to_save['event_tags'] = ','.join(event_tags_input.split('|'))
 
             event_date = row[headers.index('event_date')]
+            if isinstance(event_date, datetime):
+                event_date = event_date.strftime("%Y-%m-%dT%H:%M:%S.%f")
+            else:
+                event_date = str(event_date)
             event_date = event_date.split('.')
             # Iris cannot take anything after 6 decimal places, need to scrub out anything after that
             if len(event_date) > 1:
@@ -1329,6 +1372,19 @@ def case_events_upload_excel(caseid):
                 row_to_save['event_id'] = row[headers.index('event_id')]
             row_to_save['event_date'] = event_date
             row_to_save['event_tz'] = row[headers.index('event_tz')]
+            if 'event_end_date' in headers:
+                event_end_date = row[headers.index('event_end_date')]
+                if event_end_date is not None and event_end_date != '':
+                    if isinstance(event_end_date, datetime):
+                        event_end_date = event_end_date.strftime("%Y-%m-%dT%H:%M:%S.%f")
+                    else:
+                        event_end_date = str(event_end_date)
+                    event_end_date = event_end_date.split('.')
+                    if len(event_end_date) > 1:
+                        event_end_date[1] = event_end_date[1][:6]
+                    event_end_date = '.'.join(event_end_date)
+                    row_to_save['event_end_date'] = event_end_date
+                    row_to_save['event_end_tz'] = row[headers.index('event_end_tz')] if 'event_end_tz' in headers else None
             row_to_save['event_content'] = str(row[headers.index('event_content')])
             row_to_save['event_raw'] = str(row[headers.index('event_raw')])
             row_to_save['event_source'] = str(row[headers.index('event_source')])
@@ -1347,10 +1403,28 @@ def case_events_upload_excel(caseid):
 
         try:
             if "event_id" in row:
+                # The referenced event_id must already belong to this case, otherwise
+                # marshmallow-sqlalchemy would fetch and overwrite an event from another
+                # case. Reject the row rather than silently hijacking a foreign event.
+                if not get_case_event(row['event_id'], caseid):
+                    app.logger.error(f"Unrecoverable error in row {row_index}, event_id {row['event_id']} does not belong to this case.")
+                    list_of_errors.append(f"Unrecoverable error in row {row_index}, event_id {row['event_id']} does not belong to this case.")
+                    continue
                 request_data = call_modules_hook('on_preload_event_update', data=row, caseid=caseid)
             else:
                 request_data = call_modules_hook('on_preload_event_create', data=row, caseid=caseid)
 
+            evt_data_ms = None
+
+            # if event_date does not have milliseconds, give it ms to avoid upload / event schema validation error
+            if "." in request_data.get(u'event_date'):
+                evt_data_ms = datetime.strptime(request_data.get(u'event_date'), "%Y-%m-%dT%H:%M:%S.%f")
+            else:
+                evt_data_ms = datetime.strptime(request_data.get(u'event_date'), "%Y-%m-%dT%H:%M:%S")
+
+            evt_data_ms = evt_data_ms.strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+            request_data['event_date'] = evt_data_ms
             event = event_schema.load(request_data)
 
 
@@ -1375,6 +1449,21 @@ def case_events_upload_excel(caseid):
             # convert input timestamp to LOCAL TZ, then adapt format into string using strftime
             event.event_date = (event.event_date).astimezone(local_tz)
             event.event_date = (event.event_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+            if request_data.get(u'event_end_date'):
+                event.event_end_date, event.event_end_date_wtz = event_schema.validate_end_date(
+                    request_data.get(u'event_end_date'),
+                    request_data.get(u'event_end_tz')
+                )
+                event.event_end_date_wtz = (event.event_end_date).astimezone(tz.UTC)
+                event.event_end_date_wtz = (event.event_end_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
+                event.event_end_date = (event.event_end_date).astimezone(local_tz)
+                event.event_end_date = (event.event_end_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+                event.event_end_tz = request_data.get(u'event_end_tz')
+            else:
+                event.event_end_date = None
+                event.event_end_date_wtz = None
+                event.event_end_tz = None
 
             event.case_id = caseid
 
@@ -1442,7 +1531,7 @@ def case_events_upload_csv(caseid):
 
     jsdata = request.get_json()
     app.logger.info("Starting CSV import")
-    event_fields = [
+    required_event_fields = [
         "event_date",
         "event_tz",
         "event_title",
@@ -1454,6 +1543,12 @@ def case_events_upload_csv(caseid):
         "event_iocs",
         "event_tags"
     ]
+    optional_event_fields = [
+        "event_end_date",
+        "event_end_tz",
+        "event_end_date_wtz",
+    ]
+    event_fields = required_event_fields + optional_event_fields
 
     csv_lines = jsdata["CSVData"].splitlines()
 
@@ -1468,7 +1563,7 @@ def case_events_upload_csv(caseid):
     csv_data = list(csv.DictReader(csv_lines, delimiter=','))
     missing_fields = []
     row0 = csv_data[0]
-    for fld in event_fields:
+    for fld in required_event_fields:
         if row0.get(fld) is None:
             missing_fields.append(fld)
 
@@ -1492,8 +1587,10 @@ def case_events_upload_csv(caseid):
             event_title = row.get('event_title')
             event_assets = row.get('event_assets')
             event_iocs = row.get('event_iocs')
-            event_tags = row.get('event_tags')
+            event_tags_input = row.get('event_tags')
             event_category_name = row.pop('event_category')
+            event_end_date = row.get('event_end_date')
+            event_end_tz = row.get('event_end_tz')
 
             line += 1
 
@@ -1536,8 +1633,20 @@ def case_events_upload_csv(caseid):
             else:
                 row['event_category_id'] = DEFAULT_CAT_ID
 
-            if event_tags:
-                row['event_tags'] = ','.join(event_tags.split('|'))
+            if event_tags_input:
+                row['event_tags'] = ','.join(event_tags_input.split('|'))
+
+            if event_end_date in [None, ""]:
+                row['event_end_date'] = None
+                row['event_end_tz'] = None
+            elif not event_end_tz:
+                return response_error(msg="Data error",
+                                      data={"Error": f"Missing end event timezone.\nrow number: {line}"})
+            else:
+                event_end_date = event_end_date.split('.')
+                if len(event_end_date) > 1:
+                    event_end_date[1] = event_end_date[1][:6]
+                row['event_end_date'] = '.'.join(event_end_date)
 
             row['event_in_summary'] = event_in_summary
             row['event_in_graph'] = event_in_graph
@@ -1557,6 +1666,9 @@ def case_events_upload_csv(caseid):
             line += 1
 
             request_data = call_modules_hook('on_preload_event_create', data=row, caseid=caseid)
+            # This import path only ever creates events; strip any client-supplied event_id
+            # (e.g. an extra CSV column) so an existing event from another case can't be hijacked.
+            request_data.pop('event_id', None)
             event = event_schema.load(request_data)
             event.event_date, event.event_date_wtz = event_schema.validate_date(
                 request_data.get(u'event_date'),
@@ -1570,10 +1682,25 @@ def case_events_upload_csv(caseid):
             # convert input timestamp to UTC, then adapt format into string using strftime
             event.event_date_wtz = (event.event_date).astimezone(tz.UTC)
             event.event_date_wtz = (event.event_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
-            
+
             # convert input timestamp to LOCAL TZ, then adapt format into string using strftime
             event.event_date = (event.event_date).astimezone(local_tz)
             event.event_date = (event.event_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+            
+            if request_data.get(u'event_end_date'):
+                event.event_end_date, event.event_end_date_wtz = event_schema.validate_end_date(
+                    request_data.get(u'event_end_date'),
+                    request_data.get(u'event_end_tz')
+                )
+                event.event_end_date_wtz = (event.event_end_date).astimezone(tz.UTC)
+                event.event_end_date_wtz = (event.event_end_date_wtz).strftime("%Y-%m-%dT%H:%M:%S.%f")
+                event.event_end_date = (event.event_end_date).astimezone(local_tz)
+                event.event_end_date = (event.event_end_date).strftime("%Y-%m-%dT%H:%M:%S.%f")
+                event.event_end_tz = request_data.get(u'event_end_tz')
+            else:
+                event.event_end_date = None
+                event.event_end_date_wtz = None
+                event.event_end_tz = None
             
             event.case_id = caseid
             event.event_added = datetime.utcnow()

@@ -24,7 +24,7 @@ from flask import render_template
 from flask import request
 from werkzeug.utils import redirect
 
-from app import db
+from app.extensions import db
 from app.datamgmt.manage.manage_evidence_types_db import get_evidence_types_list
 from app.datamgmt.manage.manage_evidence_types_db import get_evidence_type_by_id
 from app.datamgmt.manage.manage_evidence_types_db import verify_evidence_type_in_use

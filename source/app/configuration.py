@@ -172,6 +172,11 @@ PG_PORT_ = config.load('POSTGRES', 'PORT')
 PG_DB_ = config.load('POSTGRES', 'DB', fallback='iris_db')
 CELERY_BROKER_ = config.load('CELERY', 'BROKER',
                              fallback=f"amqp://{config.load('CELERY', 'HOST', fallback='rabbitmq')}")
+SOCKETIO_QUEUE_ = config.load('IRIS', 'SOCKETIO_MESSAGE_QUEUE', fallback=f"redis://{config.load('IRIS', 'REDIS_HOST', fallback='redis')}:6379/1")
+FS_SERVER_ = config.load("RUSTFS", "SERVER")
+FS_PORT_ = config.load("RUSTFS", "PORT")
+FS_ACCESS_KEY_ = config.load("RUSTFS", "ACCESS_KEY")
+FS_SECRET_KEY_ = config.load("RUSTFS", "SECRET_KEY")
 
 
 # Grabs the folder where the script runs.
@@ -264,7 +269,9 @@ class CeleryConfig:
 # --------- APP ---------
 class Config:
     # Handled by bumpversion
-    IRIS_VERSION = "v2.4.20" # DO NOT EDIT THIS LINE MANUALLY
+    IRIS_VERSION = "v2.5.3" # DO NOT EDIT THIS LINE MANUALLY
+
+    # RUN_POST_INIT = True
 
     if os.environ.get('IRIS_DEMO_VERSION') is not None and os.environ.get('IRIS_DEMO_VERSION') != 'None':
         IRIS_VERSION = os.environ.get('IRIS_DEMO_VERSION')
@@ -301,6 +308,13 @@ class Config:
     PG_SERVER = PG_SERVER_
     PG_PORT = PG_PORT_
     PG_DB = PG_DB_
+
+    FS_SERVER = FS_SERVER_
+    FS_PORT = FS_PORT_
+    FS_ACCESS_KEY = FS_ACCESS_KEY_
+    FS_SECRET_KEY = FS_SECRET_KEY_
+    if FS_SERVER is not None and FS_PORT is not None:
+        FS_ENDPOINT = f"http://{FS_SERVER}:{FS_PORT}"
 
     DB_RETRY_COUNT = config.load('DB', 'RETRY_COUNT', fallback=3)
     DB_RETRY_DELAY = config.load('DB', 'RETRY_DELAY', fallback=0.5)
@@ -359,6 +373,11 @@ class Config:
     Configure URL and backend
     """
     CELERY = CeleryConfig
+
+    """
+        Redis configuration
+    """
+    SOCKETIO_MESSAGE_QUEUE = SOCKETIO_QUEUE_
 
     if os.getenv('IRIS_DEV'):
         DEVELOPMENT = True
@@ -473,7 +492,7 @@ class Config:
         OIDC_MAPPING_USERNAME = config.load('OIDC', 'MAPPING_USERNAME', fallback='preferred_username')
         OIDC_MAPPING_EMAIL = config.load('OIDC', 'MAPPING_EMAIL', fallback='email')
 
-    """ Caching 
+    """ Caching
     """
     CACHE_TYPE = "SimpleCache"
     CACHE_DEFAULT_TIMEOUT = 300

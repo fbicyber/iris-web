@@ -22,9 +22,9 @@
                             <div class="card-title">Users</div>
                         </div>
                         <div class="col">
-                            <button type="button" class="btn btn-sm btn-dark float-right ml-2" onclick="refresh_users(true);">Refresh</button>
-                            <a class="btn btn-sm btn-dark float-right ml-2" href="access-control/audit/users?cid={{ session['current_case'].case_id }}">Audit users</a>
-                            <button class="btn btn-sm btn-dark float-right ml-2" onclick="add_user();">Add user</button>
+                            <button type="button" class="btn btn-sm btn-dark float-right ml-2" onclick="refresh_users(true);" aria-label="Refresh users">Refresh</button>
+                            <a class="btn btn-sm btn-dark float-right ml-2" href="access-control/audit/users?cid={{ session['current_case'].case_id }}" aria-label="Audit users">Audit users</a>
+                            <button class="btn btn-sm btn-dark float-right ml-2" onclick="add_user();" aria-label="Add user">Add user</button>
                         </div>
                     </div>
                 </div>
@@ -68,8 +68,8 @@
                             <div class="card-title">Groups</div>
                         </div>
                         <div class="col">
-                            <button type="button" class="btn btn-sm btn-dark float-right ml-2" onclick="refresh_groups(true);">Refresh</button>
-                            <button class="btn btn-sm btn-dark float-right" onclick="add_group();">Add group</button>
+                            <button type="button" class="btn btn-sm btn-dark float-right ml-2" onclick="refresh_groups(true);" aria-label="Refresh groups">Refresh</button>
+                            <button class="btn btn-sm btn-dark float-right" onclick="add_group();" aria-label="Add group">Add group</button>
                         </div>
                     </div>
                 </div>

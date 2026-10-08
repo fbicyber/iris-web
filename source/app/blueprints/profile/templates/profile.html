@@ -97,7 +97,7 @@
                                         API Key
                                     </span>
                                 </div>
-                                <input class="form-control disable" value="{{ current_user.api_key }}" readonly>
+                                <input class="form-control disable" id="userProfileApiKey" value="" placeholder="Hidden - click Renew to generate and reveal a new key" readonly>
                                 <div class="input-group-append">
                                     <button class="btn btn-sm btn-dark" type="button" onclick="renew_api()">Renew</button>
                                 </div>
@@ -110,14 +110,15 @@
                             <div class="form-group">
                                 <label class="form-label d-block">IRIS Theme</label>
                                 <div class="selectgroup selectgroup-primary selectgroup-pills">
-                                    <label class="selectgroup-item" title="Light mode">
-                                        <input type="radio" name="iris-theme" value="false" class="selectgroup-input" {% if not current_user.in_dark_mode %}checked{% endif %}>
-                                        <span class="selectgroup-button selectgroup-button-icon"><i class="fa fa-sun"></i></span>
-                                    </label>
-                                    <label class="selectgroup-item" title="Dark mode">
-                                        <input type="radio" name="iris-theme" value="true" class="selectgroup-input" {% if current_user.in_dark_mode %}checked{% endif %}>
-                                        <span class="selectgroup-button selectgroup-button-icon"><i class="fa fa-moon"></i></span>
-                                    </label>
+                                    <a href="#"
+                                       id="profile_theme_toggle"
+                                       class="selectgroup-item theme-mode-toggle"
+                                       title="{% if current_user.in_dark_mode %}Switch to light mode{% else %}Switch to dark mode{% endif %}"
+                                       data-theme-dark="{% if current_user.in_dark_mode %}true{% else %}false{% endif %}">
+                                        <span class="selectgroup-button selectgroup-button-icon">
+                                            <i class="fa {% if current_user.in_dark_mode %}fa-sun{% else %}fa-moon{% endif %}"></i>
+                                        </span>
+                                    </a>
                                 </div>
                             </div>
                         </div>

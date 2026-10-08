@@ -26,6 +26,7 @@ from sqlalchemy import Boolean
 from sqlalchemy import Column
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
+from sqlalchemy import Index
 from sqlalchemy import Integer
 from sqlalchemy import LargeBinary
 from sqlalchemy import Sequence
@@ -41,8 +42,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql import func
 
-from app import app
-from app import db
+from flask import current_app as app
+from app.extensions import db
 
 Base = declarative_base()
 metadata = Base.metadata
@@ -136,7 +137,7 @@ class Client(db.Model):
     description = Column(Text)
     sla = Column(Text)
     creation_date = Column(DateTime, server_default=func.now(), nullable=True)
-    created_by = Column(ForeignKey('user.id'), nullable=True)
+    created_by = Column(ForeignKey('users.id'), nullable=True)
     last_update_date = Column(DateTime, server_default=func.now(), nullable=True)
 
     custom_attributes = Column(JSON)
@@ -175,21 +176,22 @@ class CaseAssets(db.Model):
     asset_uuid = Column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"), nullable=False)
     asset_name = Column(Text)
     asset_description = Column(Text)
-    asset_domain = Column(Text)
+    asset_domain = Column(Text, index=True)
     asset_ip = Column(Text)
     asset_external_ip = Column(Text)
     asset_info = Column(Text)
     asset_compromise_status_id = Column(Integer, nullable=True)
     asset_type_id = Column(ForeignKey('assets_type.asset_id'))
     asset_tags = Column(Text)
-    case_id = Column(ForeignKey('cases.case_id'))
-    date_added = Column(DateTime)
-    date_update = Column(DateTime)
-    user_id = Column(ForeignKey('user.id'))
+    case_id = Column(ForeignKey('cases.case_id'), index=True)
+    date_added = Column(DateTime, index=True)
+    date_update = Column(DateTime, index=True)
+    user_id = Column(ForeignKey('users.id'))
     analysis_status_id = Column(ForeignKey('analysis_status.id'))
     custom_attributes = Column(JSON)
     asset_enrichment = Column(JSONB)
     modification_history = Column(JSON)
+    asset_in_graph = Column(Boolean)
 
 
     case = relationship('Cases')
@@ -215,7 +217,7 @@ class CaseClassification(db.Model):
     name_expanded = Column(Text)
     description = Column(Text)
     creation_date = Column(DateTime, server_default=func.now(), nullable=True)
-    created_by_id = Column(ForeignKey('user.id'), nullable=True)
+    created_by_id = Column(ForeignKey('users.id'), nullable=True)
 
     created_by = relationship('User')
 
@@ -227,7 +229,7 @@ class EvidenceTypes(db.Model):
     name = Column(Text)
     description = Column(Text)
     creation_date = Column(DateTime, server_default=func.now(), nullable=True)
-    created_by_id = Column(ForeignKey('user.id'), nullable=True)
+    created_by_id = Column(ForeignKey('users.id'), nullable=True)
 
     created_by = relationship('User')
 
@@ -237,7 +239,7 @@ class CaseTemplate(db.Model):
 
     # Metadata
     id = Column(Integer, primary_key=True)
-    created_by_user_id = Column(Integer, db.ForeignKey('user.id'))
+    created_by_user_id = Column(Integer, db.ForeignKey('users.id'))
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
     # Data
@@ -310,7 +312,7 @@ class ObjectState(db.Model):
 
     object_id = Column(BigInteger, primary_key=True)
     object_case_id = Column(ForeignKey('cases.case_id'))
-    object_updated_by_id = db.Column(db.Integer(), db.ForeignKey('user.id'))
+    object_updated_by_id = db.Column(db.Integer(), db.ForeignKey('users.id'))
     object_name = Column(Text)
     object_state = Column(BigInteger)
     object_last_update = Column(TIMESTAMP)
@@ -383,7 +385,7 @@ class CaseTemplateReport(db.Model):
     description = db.Column(db.String())
     internal_reference = db.Column(db.String(), unique=True)
     naming_format = db.Column(db.String())
-    created_by_user_id = db.Column(db.Integer(), db.ForeignKey('user.id'))
+    created_by_user_id = db.Column(db.Integer(), db.ForeignKey('users.id'))
     date_created = db.Column(DateTime)
     language_id = db.Column(db.Integer(), db.ForeignKey('languages.id'))
     report_type_id = db.Column(db.Integer(), db.ForeignKey('report_type.id'))
@@ -401,6 +403,39 @@ class Tlp(db.Model):
     tlp_bscolor = Column(Text)
 
 
+class CustomDashboard(db.Model):
+    __tablename__ = 'custom_dashboard'
+
+    id = Column(Integer, primary_key=True)
+    dashboard_uuid = Column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"), nullable=False, unique=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    owner_id = Column(ForeignKey('users.id'), nullable=False)
+    is_shared = Column(Boolean, nullable=False, server_default=text("false"))
+    definition = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    owner = relationship('User')
+    widgets = relationship('CustomDashboardWidget', back_populates='dashboard', cascade='all, delete-orphan')
+
+
+class CustomDashboardWidget(db.Model):
+    __tablename__ = 'custom_dashboard_widget'
+
+    id = Column(Integer, primary_key=True)
+    widget_uuid = Column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"), nullable=False, unique=True)
+    dashboard_id = Column(ForeignKey('custom_dashboard.id', ondelete='CASCADE'), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    chart_type = Column(String(64), nullable=False)
+    definition = Column(JSONB, nullable=False)
+    position = Column(Integer, nullable=False, server_default=text("0"))
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    dashboard = relationship('CustomDashboard', back_populates='widgets')
+
+
 class Ioc(db.Model):
     __tablename__ = 'ioc'
 
@@ -409,19 +444,24 @@ class Ioc(db.Model):
     ioc_value = Column(Text)
     ioc_type_id = Column(ForeignKey('ioc_type.type_id'))
     ioc_description = Column(Text)
-    ioc_tags = Column(String(512))
-    user_id = Column(ForeignKey('user.id'))
+    ioc_tags = Column(String(512), index=True)
+    user_id = Column(ForeignKey('users.id'))
     ioc_misp = Column(Text)
     ioc_tlp_id = Column(ForeignKey('tlp.tlp_id'))
     custom_attributes = Column(JSON)
     ioc_enrichment = Column(JSONB)
     modification_history = Column(JSON)
+    ioc_in_graph = Column(Boolean)
 
     user = relationship('User')
     tlp = relationship('Tlp')
     ioc_type = relationship('IocType')
 
     alerts = relationship('Alert', secondary=alert_iocs_association, back_populates='iocs')
+
+    __table_args__ = (
+            Index("idx_ioc_value_hash", func.md5(ioc_value)),
+        )
 
 
 class CustomAttribute(db.Model):
@@ -463,7 +503,7 @@ class DataStoreFile(db.Model):
     file_password = Column(Text)
     file_parent_id = Column(ForeignKey('data_store_path.path_id'), nullable=False)
     file_sha256 = Column(Text)
-    added_by_user_id = Column(ForeignKey('user.id'), nullable=False)
+    added_by_user_id = Column(ForeignKey('users.id'), nullable=False)
     modification_history = Column(JSON)
     file_case_id = Column(ForeignKey('cases.case_id'), nullable=False)
 
@@ -531,7 +571,7 @@ class Notes(db.Model):
     note_uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, server_default=text("gen_random_uuid()"), nullable=False)
     note_title = Column(String(155))
     note_content = Column(Text)
-    note_user = Column(ForeignKey('user.id'))
+    note_user = Column(ForeignKey('users.id'))
     note_creationdate = Column(DateTime)
     note_lastupdate = Column(DateTime)
     note_case_id = Column(ForeignKey('cases.case_id'))
@@ -553,7 +593,7 @@ class NoteRevisions(db.Model):
     revision_number = Column(Integer, nullable=False)
     note_title = Column(String(155))
     note_content = Column(Text)
-    note_user = Column(ForeignKey('user.id'))
+    note_user = Column(ForeignKey('users.id'))
     revision_timestamp = Column(DateTime, default=datetime.datetime.utcnow)
 
     user = relationship('User')
@@ -579,7 +619,7 @@ class NotesGroup(db.Model):
     group_uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, server_default=text("gen_random_uuid()"),
                         nullable=False)
     group_title = Column(String(155))
-    group_user = Column(ForeignKey('user.id'))
+    group_user = Column(ForeignKey('users.id'))
     group_creationdate = Column(DateTime)
     group_lastupdate = Column(DateTime)
     group_case_id = Column(ForeignKey('cases.case_id'))
@@ -624,11 +664,13 @@ class CaseReceivedFile(db.Model):
     start_date = Column(DateTime)
     end_date = Column(DateTime)
     case_id = Column(ForeignKey('cases.case_id'))
-    user_id = Column(ForeignKey('user.id'))
+    user_id = Column(ForeignKey('users.id'))
     type_id = Column(ForeignKey('evidence_type.id'))
     custom_attributes = Column(JSON)
     chain_of_custody = Column(JSON)
     modification_history = Column(JSON)
+    host = Column(Text)
+    external_id = Column(Text)
 
     case = relationship('Cases')
     user = relationship('User')
@@ -655,9 +697,9 @@ class CaseTasks(db.Model):
     task_open_date = Column(DateTime)
     task_close_date = Column(DateTime)
     task_last_update = Column(DateTime)
-    task_userid_open = Column(ForeignKey('user.id'))
-    task_userid_close = Column(ForeignKey('user.id'))
-    task_userid_update = Column(ForeignKey('user.id'))
+    task_userid_open = Column(ForeignKey('users.id'))
+    task_userid_close = Column(ForeignKey('users.id'))
+    task_userid_update = Column(ForeignKey('users.id'))
     task_status_id = Column(ForeignKey('task_status.id'))
     task_case_id = Column(ForeignKey('cases.case_id'))
     custom_attributes = Column(JSON)
@@ -704,7 +746,7 @@ class TaskAssignee(db.Model):
     __tablename__ = "task_assignee"
 
     id = Column(BigInteger, primary_key=True, nullable=False)
-    user_id = Column(BigInteger, ForeignKey('user.id'), nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False)
     task_id = Column(BigInteger, ForeignKey('case_tasks.id'), nullable=False)
 
     user = relationship('User')
@@ -724,10 +766,10 @@ class GlobalTasks(db.Model):
     task_open_date = Column(DateTime)
     task_close_date = Column(DateTime)
     task_last_update = Column(DateTime)
-    task_userid_open = Column(ForeignKey('user.id'))
-    task_userid_close = Column(ForeignKey('user.id'))
-    task_userid_update = Column(ForeignKey('user.id'))
-    task_assignee_id = Column(ForeignKey('user.id'), nullable=True)
+    task_userid_open = Column(ForeignKey('users.id'))
+    task_userid_close = Column(ForeignKey('users.id'))
+    task_userid_update = Column(ForeignKey('users.id'))
+    task_assignee_id = Column(ForeignKey('users.id'), nullable=True)
     task_status_id = Column(ForeignKey('task_status.id'))
 
     user_open = relationship('User', foreign_keys=[task_userid_open])
@@ -741,7 +783,7 @@ class UserActivity(db.Model):
     __tablename__ = "user_activity"
 
     id = Column(BigInteger, primary_key=True)
-    user_id = Column(ForeignKey('user.id'), nullable=True)
+    user_id = Column(ForeignKey('users.id'), nullable=True)
     case_id = Column(ForeignKey('cases.case_id'), nullable=True)
     activity_date = Column(DateTime)
     activity_desc = Column(Text)
@@ -780,7 +822,7 @@ class Comments(db.Model):
     comment_text = Column(Text)
     comment_date = Column(DateTime)
     comment_update_date = Column(DateTime)
-    comment_user_id = Column(ForeignKey('user.id'))
+    comment_user_id = Column(ForeignKey('users.id'))
     comment_case_id = Column(ForeignKey('cases.case_id'))
     comment_alert_id = Column(ForeignKey('alerts.alert_id'))
 
@@ -859,7 +901,7 @@ class IrisModule(db.Model):
     __tablename__ = "iris_module"
 
     id = Column(Integer, primary_key=True)
-    added_by_id = Column(ForeignKey('user.id'), nullable=False)
+    added_by_id = Column(ForeignKey('users.id'), nullable=False)
     module_human_name = Column(Text)
     module_name = Column(Text)
     module_description = Column(Text)
@@ -908,7 +950,7 @@ class IrisReport(db.Model):
     report_title = Column(String(155))
     report_date = Column(DateTime)
     report_content = Column('report_content', JSON)
-    user_id = Column(ForeignKey('user.id'))
+    user_id = Column(ForeignKey('users.id'))
 
     user = relationship('User')
     case = relationship('Cases')
@@ -947,7 +989,7 @@ class SavedFilter(db.Model):
     __tablename__ = 'saved_filters'
 
     filter_id = Column(BigInteger, primary_key=True)
-    created_by = Column(ForeignKey('user.id'), nullable=False)
+    created_by = Column(ForeignKey('users.id'), nullable=False)
     filter_name = Column(Text, nullable=False)
     filter_description = Column(Text)
     filter_data = Column(JSON, nullable=False)

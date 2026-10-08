@@ -66,7 +66,7 @@ def manage_ac_compute_effective_ac(cur_id):
     return response_success('Updated')
 
 
-@manage_ac_blueprint.route('/manage/access-control/reset-mfa/<int:cur_id>', methods=['GET'])
+@manage_ac_blueprint.route('/manage/access-control/reset-mfa/<int:cur_id>', methods=['POST'])
 @ac_api_requires(Permissions.server_administrator)
 def manage_ac_reset_mfa(cur_id):
 

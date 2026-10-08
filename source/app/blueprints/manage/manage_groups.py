@@ -24,8 +24,8 @@ from flask import url_for
 from flask_login import current_user
 from werkzeug.utils import redirect
 
-from app import db
-from app import app
+from app.extensions import db
+from flask import current_app as app
 from app.datamgmt.manage.manage_cases_db import list_cases_dict
 from app.datamgmt.manage.manage_groups_db import add_all_cases_access_to_group
 from app.datamgmt.manage.manage_groups_db import add_case_access_to_group

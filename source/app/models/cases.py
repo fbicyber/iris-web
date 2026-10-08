@@ -36,7 +36,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 
-from app import db
+from app.extensions import db
 from app.datamgmt.states import update_assets_state
 from app.datamgmt.states import update_evidences_state
 from app.datamgmt.states import update_ioc_state
@@ -58,15 +58,15 @@ class Cases(db.Model):
     close_date = Column(Date)
     initial_date = Column(DateTime, nullable=False, server_default=text("now()"))
     closing_note = Column(Text)
-    user_id = Column(ForeignKey('user.id'))
-    owner_id = Column(ForeignKey('user.id'))
+    user_id = Column(ForeignKey('users.id'))
+    owner_id = Column(ForeignKey('users.id'))
     status_id = Column(Integer, nullable=False, server_default=text("0"))
     state_id = Column(ForeignKey('case_state.state_id'), nullable=True)
     custom_attributes = Column(JSON)
     case_uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, server_default=text("gen_random_uuid()"),
                        nullable=False)
     classification_id = Column(ForeignKey('case_classification.id'))
-    reviewer_id = Column(ForeignKey('user.id'), nullable=True)
+    reviewer_id = Column(ForeignKey('users.id'), nullable=True)
     review_status_id = Column(ForeignKey('review_status.id'), nullable=True)
     severity_id = Column(ForeignKey('severities.severity_id'), nullable=True)
 
@@ -161,9 +161,6 @@ class Cases(db.Model):
 
 class CaseTags(db.Model):
     __tablename__ = 'case_tags'
-    __table_args__ = (
-        UniqueConstraint('case_id', 'tag_id', name='case_tags_case_id_tag_id_key'),
-    )
 
     case_id = Column(ForeignKey('cases.case_id'), primary_key=True, nullable=False)
     tag_id = Column(ForeignKey('tags.id'), primary_key=True, nullable=False, index=True)
@@ -183,14 +180,17 @@ class CasesEvent(db.Model):
     event_raw = Column(Text)
     event_date = Column(DateTime)
     event_added = Column(DateTime)
+    event_end_date = Column(DateTime)
     event_in_graph = Column(Boolean)
     event_in_summary = Column(Boolean)
-    user_id = Column(ForeignKey('user.id'))
+    user_id = Column(ForeignKey('users.id'))
     modification_history = Column(JSONB)
     event_color = Column(Text)
     event_tags = Column(Text)
     event_tz = Column(Text)
     event_date_wtz = Column(DateTime)
+    event_end_tz = Column(Text)
+    event_end_date_wtz = Column(DateTime)
     event_is_flagged = Column(Boolean, default=False)
     custom_attributes = Column(JSONB)
 
@@ -223,7 +223,7 @@ class CaseProtagonist(db.Model):
 
     id = Column(Integer, primary_key=True)
     case_id = Column(ForeignKey('cases.case_id'))
-    user_id = Column(ForeignKey('user.id'))
+    user_id = Column(ForeignKey('users.id'))
     name = Column(Text)
     contact = Column(Text)
     role = Column(Text)

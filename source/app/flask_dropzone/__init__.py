@@ -10,7 +10,7 @@
 import warnings
 from flask import Blueprint
 from flask import Markup
-from flask import current_app
+from flask import current_app as app
 from flask import render_template_string
 from flask import url_for
 
@@ -51,18 +51,18 @@ class _Dropzone(object):
         js_filename = 'dropzone.min.js'
         css_filename = 'dropzone.min.css'
 
-        upload_multiple = current_app.config['DROPZONE_UPLOAD_MULTIPLE']
-        parallel_uploads = current_app.config['DROPZONE_PARALLEL_UPLOADS']
+        upload_multiple = app.config['DROPZONE_UPLOAD_MULTIPLE']
+        parallel_uploads = app.config['DROPZONE_PARALLEL_UPLOADS']
 
         if upload_multiple in [True, 'true', 'True', 1]:
             upload_multiple = 'true'
         else:
             upload_multiple = 'false'
 
-        serve_local = current_app.config['DROPZONE_SERVE_LOCAL']
-        size = current_app.config['DROPZONE_MAX_FILE_SIZE']
-        param = current_app.config['DROPZONE_INPUT_NAME']
-        redirect_view = current_app.config['DROPZONE_REDIRECT_VIEW']
+        serve_local = app.config['DROPZONE_SERVE_LOCAL']
+        size = app.config['DROPZONE_MAX_FILE_SIZE']
+        param = app.config['DROPZONE_INPUT_NAME']
+        redirect_view = app.config['DROPZONE_REDIRECT_VIEW']
 
         if redirect_view is not None:
             redirect_js = '''
@@ -73,25 +73,25 @@ class _Dropzone(object):
         else:
             redirect_js = ''
 
-        if not current_app.config['DROPZONE_ALLOWED_FILE_CUSTOM']:
+        if not app.config['DROPZONE_ALLOWED_FILE_CUSTOM']:
             allowed_type = allowed_file_extensions[
-                current_app.config['DROPZONE_ALLOWED_FILE_TYPE']]
+                app.config['DROPZONE_ALLOWED_FILE_TYPE']]
         else:
-            allowed_type = current_app.config['DROPZONE_ALLOWED_FILE_TYPE']
+            allowed_type = app.config['DROPZONE_ALLOWED_FILE_TYPE']
 
-        max_files = current_app.config['DROPZONE_MAX_FILES']
-        default_message = current_app.config['DROPZONE_DEFAULT_MESSAGE']
-        invalid_file_type = current_app.config['DROPZONE_INVALID_FILE_TYPE']
-        file_too_big = current_app.config['DROPZONE_FILE_TOO_BIG']
-        server_error = current_app.config['DROPZONE_SERVER_ERROR']
-        browser_unsupported = current_app.config['DROPZONE_BROWSER_UNSUPPORTED']
-        max_files_exceeded = current_app.config['DROPZONE_MAX_FILE_EXCEED']
-        cancelUpload = current_app.config['DROPZONE_CANCEL_UPLOAD']
-        removeFile = current_app.config['DROPZONE_REMOVE_FILE']
-        cancelConfirmation = current_app.config['DROPZONE_CANCEL_CONFIRMATION']
-        uploadCanceled = current_app.config['DROPZONE_UPLOAD_CANCELED']
+        max_files = app.config['DROPZONE_MAX_FILES']
+        default_message = app.config['DROPZONE_DEFAULT_MESSAGE']
+        invalid_file_type = app.config['DROPZONE_INVALID_FILE_TYPE']
+        file_too_big = app.config['DROPZONE_FILE_TOO_BIG']
+        server_error = app.config['DROPZONE_SERVER_ERROR']
+        browser_unsupported = app.config['DROPZONE_BROWSER_UNSUPPORTED']
+        max_files_exceeded = app.config['DROPZONE_MAX_FILE_EXCEED']
+        cancelUpload = app.config['DROPZONE_CANCEL_UPLOAD']
+        removeFile = app.config['DROPZONE_REMOVE_FILE']
+        cancelConfirmation = app.config['DROPZONE_CANCEL_CONFIRMATION']
+        uploadCanceled = app.config['DROPZONE_UPLOAD_CANCELED']
 
-        timeout = current_app.config['DROPZONE_TIMEOUT']
+        timeout = app.config['DROPZONE_TIMEOUT']
         if timeout:
             timeout_js = 'timeout: %d,' % timeout
         else:
@@ -148,7 +148,7 @@ Dropzone.options.myDropzone = {
         :param version: The version of Dropzone.js.
         """
         css_filename = 'dropzone.min.css'
-        serve_local = current_app.config['DROPZONE_SERVE_LOCAL']
+        serve_local = app.config['DROPZONE_SERVE_LOCAL']
 
         if serve_local:
             css = '<link rel="stylesheet" href="%s" type="text/css">\n' % \
@@ -171,7 +171,7 @@ Dropzone.options.myDropzone = {
         :param version: The version of Dropzone.js.
         """
         js_filename = 'dropzone.min.js'
-        serve_local = current_app.config['DROPZONE_SERVE_LOCAL']
+        serve_local = app.config['DROPZONE_SERVE_LOCAL']
 
         if serve_local:
             js = '<script src="%s"></script>\n' % url_for('dropzone.static', filename=js_filename)
@@ -200,17 +200,17 @@ Dropzone.options.myDropzone = {
         if custom_options and not custom_options.strip().endswith(','):
             custom_options += ','
 
-        upload_multiple = kwargs.get('upload_multiple', current_app.config['DROPZONE_UPLOAD_MULTIPLE'])
-        parallel_uploads = kwargs.get('parallel_uploads', current_app.config['DROPZONE_PARALLEL_UPLOADS'])
+        upload_multiple = kwargs.get('upload_multiple', app.config['DROPZONE_UPLOAD_MULTIPLE'])
+        parallel_uploads = kwargs.get('parallel_uploads', app.config['DROPZONE_PARALLEL_UPLOADS'])
 
         if upload_multiple in [True, 'true', 'True', 1]:
             upload_multiple = 'true'
         else:
             upload_multiple = 'false'
 
-        size = kwargs.get('max_file_size', current_app.config['DROPZONE_MAX_FILE_SIZE'])
-        param = kwargs.get('input_name', current_app.config['DROPZONE_INPUT_NAME'])
-        redirect_view = kwargs.get('redirect_view', current_app.config['DROPZONE_REDIRECT_VIEW'])
+        size = kwargs.get('max_file_size', app.config['DROPZONE_MAX_FILE_SIZE'])
+        param = kwargs.get('input_name', app.config['DROPZONE_INPUT_NAME'])
+        redirect_view = kwargs.get('redirect_view', app.config['DROPZONE_REDIRECT_VIEW'])
 
         if redirect_view is not None or redirect_url is not None:
             redirect_url = redirect_url or url_for(redirect_view)
@@ -222,19 +222,19 @@ Dropzone.options.myDropzone = {
         else:
             redirect_js = ''
 
-        max_files = kwargs.get('max_files', current_app.config['DROPZONE_MAX_FILES'])
+        max_files = kwargs.get('max_files', app.config['DROPZONE_MAX_FILES'])
 
-        click_upload = kwargs.get('upload_on_click', current_app.config['DROPZONE_UPLOAD_ON_CLICK'])
-        button_id = kwargs.get('upload_btn_id', current_app.config['DROPZONE_UPLOAD_BTN_ID'])
-        in_form = kwargs.get('in_form', current_app.config['DROPZONE_IN_FORM'])
-        cancelUpload = kwargs.get('cancel_upload', current_app.config['DROPZONE_CANCEL_UPLOAD'])
-        removeFile = kwargs.get('remove_file', current_app.config['DROPZONE_REMOVE_FILE'])
-        cancelConfirmation = kwargs.get('cancel_confirmation', current_app.config['DROPZONE_CANCEL_CONFIRMATION'])
-        uploadCanceled = kwargs.get('upload_canceled', current_app.config['DROPZONE_UPLOAD_CANCELED'])
+        click_upload = kwargs.get('upload_on_click', app.config['DROPZONE_UPLOAD_ON_CLICK'])
+        button_id = kwargs.get('upload_btn_id', app.config['DROPZONE_UPLOAD_BTN_ID'])
+        in_form = kwargs.get('in_form', app.config['DROPZONE_IN_FORM'])
+        cancelUpload = kwargs.get('cancel_upload', app.config['DROPZONE_CANCEL_UPLOAD'])
+        removeFile = kwargs.get('remove_file', app.config['DROPZONE_REMOVE_FILE'])
+        cancelConfirmation = kwargs.get('cancel_confirmation', app.config['DROPZONE_CANCEL_CONFIRMATION'])
+        uploadCanceled = kwargs.get('upload_canceled', app.config['DROPZONE_UPLOAD_CANCELED'])
 
         if click_upload:
             if in_form:
-                action = get_url(kwargs.get('upload_action', current_app.config['DROPZONE_UPLOAD_ACTION']))
+                action = get_url(kwargs.get('upload_action', app.config['DROPZONE_UPLOAD_ACTION']))
 
                 click_listener = '''
                 dz = this; // Makes sure that 'this' is understood inside the functions below.
@@ -271,28 +271,28 @@ Dropzone.options.myDropzone = {
             click_listener = ''
             click_option = ''
 
-        allowed_file_type = kwargs.get('allowed_file_type', current_app.config['DROPZONE_ALLOWED_FILE_TYPE'])
-        allowed_file_custom = kwargs.get('allowed_file_custom', current_app.config['DROPZONE_ALLOWED_FILE_CUSTOM'])
+        allowed_file_type = kwargs.get('allowed_file_type', app.config['DROPZONE_ALLOWED_FILE_TYPE'])
+        allowed_file_custom = kwargs.get('allowed_file_custom', app.config['DROPZONE_ALLOWED_FILE_CUSTOM'])
 
         if allowed_file_custom:
             allowed_type = allowed_file_type
         else:
             allowed_type = allowed_file_extensions[allowed_file_type]
 
-        default_message = kwargs.get('default_message', current_app.config['DROPZONE_DEFAULT_MESSAGE'])
-        invalid_file_type = kwargs.get('invalid_file_type', current_app.config['DROPZONE_INVALID_FILE_TYPE'])
-        file_too_big = kwargs.get('file_too_big', current_app.config['DROPZONE_FILE_TOO_BIG'])
-        server_error = kwargs.get('server_error', current_app.config['DROPZONE_SERVER_ERROR'])
-        browser_unsupported = kwargs.get('browser_unsupported', current_app.config['DROPZONE_BROWSER_UNSUPPORTED'])
-        max_files_exceeded = kwargs.get('max_file_exceeded', current_app.config['DROPZONE_MAX_FILE_EXCEED'])
+        default_message = kwargs.get('default_message', app.config['DROPZONE_DEFAULT_MESSAGE'])
+        invalid_file_type = kwargs.get('invalid_file_type', app.config['DROPZONE_INVALID_FILE_TYPE'])
+        file_too_big = kwargs.get('file_too_big', app.config['DROPZONE_FILE_TOO_BIG'])
+        server_error = kwargs.get('server_error', app.config['DROPZONE_SERVER_ERROR'])
+        browser_unsupported = kwargs.get('browser_unsupported', app.config['DROPZONE_BROWSER_UNSUPPORTED'])
+        max_files_exceeded = kwargs.get('max_file_exceeded', app.config['DROPZONE_MAX_FILE_EXCEED'])
 
-        timeout = kwargs.get('timeout', current_app.config['DROPZONE_TIMEOUT'])
+        timeout = kwargs.get('timeout', app.config['DROPZONE_TIMEOUT'])
         if timeout:
             custom_options += 'timeout: %d,' % timeout
 
-        enable_csrf = kwargs.get('enable_csrf', current_app.config['DROPZONE_ENABLE_CSRF'])
+        enable_csrf = kwargs.get('enable_csrf', app.config['DROPZONE_ENABLE_CSRF'])
         if enable_csrf:
-            if 'csrf' not in current_app.extensions:
+            if 'csrf' not in app.extensions:
                 raise RuntimeError("CSRFProtect is not initialized. It's required to enable CSRF protect, \
                     see docs for more details.")
             csrf_token = render_template_string('{{ csrf_token() }}')
@@ -351,7 +351,7 @@ Dropzone.options.myDropzone = {
         :param csrf: Enable CSRF protect or not, same with ``DROPZONE_ENABLE_CSRF``, deprecated since 1.5.4.
         :param action_view: The view which handle the post data, deprecated since 1.4.2.
         """
-        if current_app.config['DROPZONE_IN_FORM']:
+        if app.config['DROPZONE_IN_FORM']:
             return Markup('<div class="dropzone" id="myDropzone"></div>')
 
         if action:
@@ -451,5 +451,5 @@ class Dropzone(object):
     @staticmethod
     def context_processor():
         return {
-            'dropzone': current_app.extensions['dropzone']
+            'dropzone': app.extensions['dropzone']
         }

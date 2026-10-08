@@ -32,14 +32,17 @@ from sqlalchemy import create_engine, exc, or_, text
 from sqlalchemy_utils import create_database
 from sqlalchemy_utils import database_exists
 
-from app import app
-from app import bc
-from app import celery
-from app import db
+from flask import current_app as app
+from app import create_app
+from app.extensions import bc
+from app.extensions import celery
+from app.extensions import db
 from app.datamgmt.iris_engine.modules_db import iris_module_disable_by_id
 from app.datamgmt.manage.manage_groups_db import add_case_access_to_group
 from app.datamgmt.manage.manage_users_db import add_user_to_group
 from app.datamgmt.manage.manage_users_db import add_user_to_organisation
+from app.datamgmt.manage.manage_case_templates_db import get_case_templates_list
+from app.blueprints.manage.manage_case_templates_routes import create_default_case_template
 from app.iris_engine.access_control.utils import ac_add_user_effective_access
 from app.iris_engine.demo_builder import create_demo_cases
 from app.iris_engine.access_control.utils import ac_get_mask_analyst
@@ -54,6 +57,7 @@ from app.models.authorization import CaseAccessLevel
 from app.models.authorization import Group
 from app.models.authorization import Organisation
 from app.models.authorization import User
+from app.models.authorization import hash_api_key
 from app.models.cases import Cases, CaseState
 from app.models.cases import Client
 from app.models.models import AnalysisStatus, CaseClassification, ReviewStatus, ReviewStatusList, EvidenceTypes
@@ -142,20 +146,19 @@ def run_post_init(development=False):
 
         # Setup database before everything
         with app.app_context():
-            log.info("Creating all Iris tables")
-            db.create_all(bind_key=None)
-            db.session.commit()
+
+            # log.info("Running DB migration")
+            # alembic_cfg = Config(file_='app/alembic.ini')
+            # alembic_cfg.set_main_option('sqlalchemy.url', app.config['SQLALCHEMY_DATABASE_URI'])
+            # command.upgrade(alembic_cfg, 'head')
 
             log.info("Creating Celery metatasks tables")
             create_safe_db(db_name="iris_tasks")
             db.create_all(bind_key="iris_tasks")
             db.session.commit()
 
-            log.info("Running DB migration")
-
-            alembic_cfg = Config(file_='app/alembic.ini')
-            alembic_cfg.set_main_option('sqlalchemy.url', app.config['SQLALCHEMY_DATABASE_URI'])
-            command.upgrade(alembic_cfg, 'head')
+            db.metadata.clear()
+            db.metadata.reflect(bind=db.engine)
 
             # Create base server settings if they don't exist
             srv_settings = ServerSettings.query.first()
@@ -247,6 +250,10 @@ def run_post_init(development=False):
                 groups=[gadm, ganalysts]
             )
 
+            # Create initial case template
+            log.info("Creating initial case template")
+            create_safe_case_template(admin)
+
             # Setup symlinks for custom_assets
             log.info("Creating symlinks for custom asset icons")
             custom_assets_symlinks()
@@ -269,9 +276,6 @@ def run_post_init(development=False):
 
             # Log completion message
             log.info("Post-init steps completed")
-            log.warning("===============================")
-            log.warning(f"| IRIS IS READY on port  {os.getenv('INTERFACE_HTTPS_PORT')} |")
-            log.warning("===============================")
 
             # If an administrative user was created, log their credentials
             if pwd is not None:
@@ -292,6 +296,7 @@ def create_safe_db(db_name):
     if not database_exists(engine.url):
         # If the database does not exist, create it
         create_database(engine.url)
+
 
     # Dispose of the engine object
     engine.dispose()
@@ -539,6 +544,17 @@ def create_safe_hooks():
     create_safe(db.session, IrisHook, hook_name='on_postload_alert_comment_delete',
                 hook_description='Triggered on alert comment deletion, after commit in DB')
 
+def delete_alembic_version():
+
+    with app.app_context():
+
+        # Open a connection to the iris_db database
+        with db.engine.connect() as con:
+            # Execute a SQL command to create the pgcrypto extension if it does not already exist
+            con.execute(text('DELETE FROM alembic_version;'))
+            con.commit()
+            log.info("Alembic version deleted")
+
 
 def pg_add_pgcrypto_ext():
     """Adds the pgcrypto extension to the PostgreSQL database.
@@ -772,6 +788,7 @@ def create_safe_evidence_types():
     create_safe(db.session, EvidenceTypes, name='VM image - Linux Server', description="Copy of a Linux Server VM")
     create_safe(db.session, EvidenceTypes, name='VM image - Windows Server', description="Copy of a Windows Server VM")
     create_safe(db.session, EvidenceTypes, name='VM image - Windows Server', description="Copy of a Windows Server VM")
+    create_safe(db.session, EvidenceTypes, name='VM image - Windows Workstation', description="Copy of a Windows Workstation VM")
 
     create_safe(db.session, EvidenceTypes, name='Phone Image - Android', description="Copy of an Android phone")
     create_safe(db.session, EvidenceTypes, name='Phone Image - iPhone', description="Copy of an iPhone")
@@ -888,6 +905,8 @@ def create_safe_assets():
     get_by_value_or_create(db.session, AssetsType, "asset_name", asset_name="Mac - Computer",
                            asset_description="Mac computer", asset_icon_not_compromised="desktop.png",
                            asset_icon_compromised="ioc_desktop.png")
+    get_by_value_or_create(db.session, AssetsType, "asset_name", asset_name="Other", asset_description="Other",
+                           asset_icon_not_compromised="question-mark.png", asset_icon_compromised="ioc_question-mark.png")
     get_by_value_or_create(db.session, AssetsType, "asset_name", asset_name="Phone - Android",
                            asset_description="Android Phone", asset_icon_not_compromised="phone.png",
                            asset_icon_compromised="ioc_phone.png")
@@ -908,6 +927,8 @@ def create_safe_assets():
                            asset_icon_not_compromised="router.png", asset_icon_compromised="ioc_router.png")
     get_by_value_or_create(db.session, AssetsType, "asset_name", asset_name="Switch", asset_description="Switch",
                            asset_icon_not_compromised="switch.png", asset_icon_compromised="ioc_switch.png")
+    get_by_value_or_create(db.session, AssetsType, "asset_name", asset_name="Unknown", asset_description="Unknown",
+                           asset_icon_not_compromised="question-mark.png", asset_icon_compromised="ioc_question-mark.png")
     get_by_value_or_create(db.session, AssetsType, "asset_name", asset_name="VPN", asset_description="VPN",
                            asset_icon_not_compromised="vpn.png", asset_icon_compromised="ioc_vpn.png")
     get_by_value_or_create(db.session, AssetsType, "asset_name", asset_name="WAF", asset_description="WAF",
@@ -1057,7 +1078,7 @@ def create_safe_admin(def_org, gadm):
         if api_key is None:
             api_key = secrets.token_urlsafe(nbytes=64)
 
-        user.api_key = api_key
+        user.api_key = hash_api_key(api_key)
         db.session.add(user)
 
         db.session.commit()
@@ -1123,6 +1144,22 @@ def create_safe_case(user, client, groups):
                                      access_level=CaseAccessLevel.full_access.value)
 
     return case
+
+
+def create_safe_case_template(user):
+    """
+    Create default case template if none exists at app init
+    """
+    case_templates_list = get_case_templates_list()
+    case_template = None
+    if len(case_templates_list) > 0:
+        case_template = case_templates_list[0]
+        log.debug(f"At least one case template already exists, no need to create default case template")
+    else:
+        case_template = create_default_case_template(user)
+        log.debug(f"No case templates exist, creating a default case template name: {case_template['name']}")
+
+    return case_template
 
 
 def create_safe_report_types():
@@ -1740,3 +1777,4 @@ def create_directories():
             os.makedirs(app.config.get(d), exist_ok=True)
         except OSError as e:
             log.error(f"Failed to create directory {app.config.get(d)}: {e}")
+

@@ -27,8 +27,11 @@ from flask import request
 from flask import url_for
 from flask_login import current_user
 from flask_wtf import FlaskForm
+from openpyxl import Workbook, load_workbook
+from io import BytesIO
 
-from app import db
+from app.extensions import db
+from flask import current_app as app
 from app.blueprints.case.case_comments import case_comment_update
 from app.datamgmt.case.case_db import get_case
 from app.datamgmt.case.case_rfiles_db import add_comment_to_evidence
@@ -38,9 +41,10 @@ from app.datamgmt.case.case_rfiles_db import delete_rfile
 from app.datamgmt.case.case_rfiles_db import get_case_evidence_comment
 from app.datamgmt.case.case_rfiles_db import get_case_evidence_comments
 from app.datamgmt.case.case_rfiles_db import get_case_evidence_comments_count
-from app.datamgmt.case.case_rfiles_db import get_rfile
+from app.datamgmt.case.case_rfiles_db import get_rfile, get_rfile_from_ext_id
 from app.datamgmt.case.case_rfiles_db import get_rfiles
 from app.datamgmt.case.case_rfiles_db import update_rfile
+from app.datamgmt.case.case_rfiles_db import get_evidence_type_by_name, get_default_evidence_type
 from app.datamgmt.manage.manage_attribute_db import get_default_custom_attributes
 from app.datamgmt.states import get_evidences_state
 from app.iris_engine.module_handler.module_handler import call_modules_hook
@@ -105,6 +109,9 @@ def case_add_rfile(caseid):
         evidence_schema = CaseEvidenceSchema()
 
         request_data = call_modules_hook('on_preload_evidence_create', data=request.get_json(), caseid=caseid)
+        # Never load a client-supplied primary key on create, or marshmallow-sqlalchemy
+        # would fetch and overwrite an existing evidence record from another case.
+        request_data.pop('id', None)
 
         evidence = evidence_schema.load(request_data)
 
@@ -229,7 +236,7 @@ def case_comment_evidence_modal(cur_id, caseid, url_redir):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_evidence_list(cur_id, caseid):
 
-    evidence_comments = get_case_evidence_comments(cur_id)
+    evidence_comments = get_case_evidence_comments(cur_id, caseid)
     if evidence_comments is None:
         return response_error('Invalid evidence ID')
 
@@ -276,7 +283,7 @@ def case_comment_evidence_add(cur_id, caseid):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_evidence_get(cur_id, com_id, caseid):
 
-    comment = get_case_evidence_comment(cur_id, com_id)
+    comment = get_case_evidence_comment(cur_id, com_id, caseid)
     if not comment:
         return response_error("Invalid comment ID")
 
@@ -302,3 +309,184 @@ def case_comment_evidence_delete(cur_id, com_id, caseid):
 
     track_activity(f"comment {com_id} on evidence {cur_id} deleted", caseid=caseid)
     return response_success(msg)
+
+
+@case_rfiles_blueprint.route('/case/evidences/excel_upload', methods=['POST'])
+@ac_api_case_requires(CaseAccessLevel.full_access)
+def case_evidences_upload_excel(caseid):
+    # to validate uploaded evidence attributes
+    evidence_schema = CaseEvidenceSchema()
+
+    jsdata = request.get_json()
+    if not jsdata or "excel_data" not in jsdata:
+        return response_error(msg="Unable to get data imported from Excel", data={"Exception": f"Unable to get data imported from Excel"})
+
+    app.logger.info("Starting Excel import")
+    evidence_fields = [
+        "id",
+        "filename",
+        "type",
+        "file_hash",
+        "file_size",
+        "file_description",
+        "host",
+        "external_id"
+    ]
+
+    list_of_errors = []
+
+    # excel data is received as an array of numbers, actually uint8 converted by js
+    excel_data_bytes = jsdata["excel_data"]
+
+    # convert the array of numbers to a byte array, then a bytestring, then a mock(?) file object for load_workbook to read
+    workbook = load_workbook(BytesIO(bytes(bytearray(excel_data_bytes))))
+    worksheet = workbook.worksheets[0]
+    excel_lines = []
+    for i, row in enumerate(worksheet):
+        if i == 0:
+            headers = [cell.value for cell in row]
+            missing_fields = [fld for fld in evidence_fields if fld not in headers]
+            if len(missing_fields) > 0:
+                msg = f"Bad XLSX Fields Mapping. Fields missing: [{','.join(missing_fields)}]"
+                data = {"error_code": "BAD_FIELDS_MAPPING", "expected": ','.join(evidence_fields), "found": ','.join(headers),
+                        "missing": ','.join(missing_fields)}
+                app.logger.warning(data)
+
+                return response_error(msg=msg, data=data)
+        else:
+            line = []
+            for i, cell in enumerate(row):
+                line.append(cell.value)
+            excel_lines.append(line)
+
+    DEFAULT_EVIDENCE_TYPE_ID = get_default_evidence_type().id
+    import_error = False
+    # ==========================  checking data validity  ==========================
+    row_index = 1
+    excel_lines_to_save = []
+    for row in excel_lines:
+        try:
+            row_index += 1
+            if not any(row):
+                continue
+            row_to_save = {}
+
+            # get attributes from each row
+            filename = str(row[headers.index('filename')])
+            evidence_type = row[headers.index('type')]            
+            file_hash = str(row[headers.index('file_hash')])
+            file_size = str(row[headers.index('file_size')])
+            file_description = str(row[headers.index('file_description')])
+            host = str(row[headers.index('host')])
+            external_id = str(row[headers.index('external_id')])
+
+            # check for evidence id
+            if row[headers.index('id')]:
+                row_to_save['id'] = row[headers.index('id')]
+            else:
+                # check for any external id
+                if row[headers.index('external_id')]:
+                    crf = get_rfile_from_ext_id(external_id, caseid)
+                    if crf:
+                        row_to_save['id'] = crf.id
+
+
+            # error checking filename
+            if filename is None or len(filename) == 0:
+                error_msg = f"Recoverable in row {row_index}, Evidence Filename cannot be empty."
+                app.logger.error(error_msg)
+                list_of_errors.append(error_msg)
+                import_error = True
+            else:
+                row_to_save['filename'] = filename
+            
+            # error checking evidence type
+            if (evidence_type != None) and (evidence_type != ""):
+                try:
+                    valid_evidence_type = get_evidence_type_by_name(evidence_type)
+                    row_to_save['type_id'] = valid_evidence_type.id
+
+                except Exception as e:
+                    error_msg = f"Recoverable in row {row_index}, evidence type not recognized: {evidence_type}."
+                    app.logger.error(error_msg)
+                    list_of_errors.append(error_msg)
+                    import_error = True
+                    row_to_save['type_id'] = DEFAULT_EVIDENCE_TYPE_ID
+            
+            # adding file size, hash, description, additional metadata
+            row_to_save['file_size'] = file_size
+            row_to_save['file_hash'] = file_hash
+            row_to_save['file_description'] = file_description
+            row_to_save['host'] = host
+            row_to_save['external_id'] = external_id
+            
+            # appending row
+            app.logger.info(f"Appending row {row_index}")
+            excel_lines_to_save.append(row_to_save)
+
+        except Exception as e:
+            return response_error(msg=f"Data error", data={"Exception": f"Unhandled error {e}.\nrow number: {row_index}"})
+    
+    # ========================== begin saving data ============================
+    session = db.session.begin_nested()
+    row_index = 1
+    for row in excel_lines_to_save:
+        if row is None:
+            continue
+        row_index += 1
+        app.logger.info(f"Saving ROW {row_index}")
+
+        try:
+            if "id" in row:
+                request_data = call_modules_hook('on_preload_evidence_update', data=row, caseid=caseid)
+            else:
+                request_data = call_modules_hook('on_preload_evidence_create', data=row, caseid=caseid)
+            evidence = evidence_schema.load(request_data)
+
+            # add evidence if no id exists
+            if "id" not in row:
+                crf = add_rfile(evidence=evidence,
+                    user_id=current_user.id,
+                    caseid=caseid
+                )
+                crf = call_modules_hook('on_postload_evidence_create', data=crf, caseid=caseid)
+            
+                if crf:
+                    track_activity(f"Added evidence \"{crf.filename}\"", caseid=caseid)
+                    app.logger.info(f"Evidence added: {crf.filename}")
+
+            else:
+                # update evidence if id exists
+                crf = get_rfile(row["id"], caseid)
+                evd = update_rfile(evidence=evidence,
+                    user_id=current_user.id,
+                    caseid=caseid
+                )
+
+                evd = call_modules_hook('on_postload_evidence_update', data=evd, caseid=caseid)
+                if evd:
+                    track_activity(f"updated evidence \"{evd.filename}\"", caseid=caseid)
+                    app.logger.info(f"Evidence updated: {crf.filename}")
+
+        except marshmallow.exceptions.ValidationError as e:
+            error_msg = f"Unrecoverable error in row {row_index} while validating, Exception : {e}"
+            app.logger.error(error_msg)
+            list_of_errors.append(error_msg)
+            import_error = True
+
+        except Exception as e:
+            error_msg = f"Unrecoverable error in row {row_index} at unknown point, Exception : {e}"
+            app.logger.error(error_msg)
+            list_of_errors.append(error_msg)
+            import_error = True    
+    
+    try:
+        session.commit()
+    except:
+        pass
+        
+    app.logger.info("======================== END_EXCEL_IMPORT ==========================================")
+    if not import_error:
+        return response_success(msg="Evidence added with no errors (Excel File)")
+    else:
+        return response_success(msg=f"Events added with errors: {list_of_errors}", data=list_of_errors)

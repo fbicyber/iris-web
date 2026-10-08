@@ -33,14 +33,14 @@
 
             {% if ioc_type.type_id %}
                 <button type="button" class="btn btn-outline-danger mt-5"
-                onclick="delete_ioc_type('{{ ioc_type.type_id }}');">Delete</button>
+                onclick="delete_ioc_type('{{ ioc_type.type_id }}');" aria-label="Delete IOC type">Delete</button>
                 <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_ioc_type">Update</button>
+                id="submit_new_ioc_type" aria-label="Update IOC type">Update</button>
 
             {% else %}
 
                 <button type="button" class="btn btn-outline-success ml-4 mt-5 float-right"
-                id="submit_new_ioc_type">Save</button>
+                id="submit_new_ioc_type" aria-label="Save IOC type">Save</button>
 
             {% endif %}
         </form>

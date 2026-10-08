@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from celery import shared_task
 from celery.schedules import crontab
 from datetime import datetime
 from flask_login import current_user
@@ -32,11 +33,12 @@ from flask_socketio import join_room
 from packaging import version
 from pathlib import Path
 
-from app import app
-from app import cache
-from app import celery
-from app import db
+from flask import current_app as app
+from app.extensions import celery
+from app.extensions import cache
+from app.extensions import db
 from app import socket_io
+from app.util import ac_socket_requires_authenticated
 from app.datamgmt.manage.manage_srv_settings_db import get_server_settings_as_dict
 from app.iris_engine.backup.backup import backup_iris_db
 from app.models import ServerSettings
@@ -71,6 +73,7 @@ def update_log_error(status):
 
 
 @socket_io.on('join-update', namespace='/server-updates')
+@ac_socket_requires_authenticated()
 def get_message(data):
 
     room = data['channel']
@@ -81,6 +84,7 @@ def get_message(data):
 
 
 @socket_io.on('update_ping', namespace='/server-updates')
+@ac_socket_requires_authenticated()
 def socket_on_update_ping(msg):
 
     emit('update_ping', {'message': f"Server connected", 'is_error': False},
@@ -88,6 +92,7 @@ def socket_on_update_ping(msg):
 
 
 @socket_io.on('update_get_current_version', namespace='/server-updates')
+@ac_socket_requires_authenticated()
 def socket_on_update_do_reboot(msg):
 
     socket_io.emit('update_current_version', {"version": app.config.get('IRIS_VERSION')}, to='iris_update_status',
@@ -568,7 +573,7 @@ def download_from_url(asset_url, target_file):
     return Path(target_file).is_file()
 
 
-@celery.task(bind=True)
+@shared_task(bind=True)
 def task_update_worker(self, update_archive, updates_config):
 
     if not call_ext_updater(update_archive=update_archive, scope="worker",
@@ -579,7 +584,7 @@ def task_update_worker(self, update_archive, updates_config):
     return IStatus.I2Success(message="Worker updater called")
 
 
-@celery.task(bind=True)
+@shared_task(bind=True)
 def task_update_get_version(self):
     return IStatus.I2Success(data=app.config.get('IRIS_VERSION'))
 
@@ -598,7 +603,7 @@ def remove_periodic_update_checks():
         del celery.conf['beat_schedule']['iris_auto_check_updates']
 
 
-@celery.task
+@shared_task
 def task_check_available_updates():
     log.info('Cron - Checking if updates are available')
     has_updates, _, _ = is_updates_available()

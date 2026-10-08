@@ -19,7 +19,8 @@ from datetime import datetime
 from flask_login import current_user
 from marshmallow import ValidationError
 
-from app import db, app
+from app.extensions import db
+from flask import current_app as app
 from app.business.errors import BusinessProcessingError, UnhandledBusinessError
 from app.business.permissions import check_current_user_has_some_case_access_stricter
 from app.datamgmt.case.case_notes_db import get_note
@@ -50,6 +51,9 @@ def create(request_json, case_identifier):
 
     try:
         request_data = call_modules_hook('on_preload_note_create', data=request_json, caseid=case_identifier)
+        # Never load a client-supplied primary key on create, or marshmallow-sqlalchemy
+        # would fetch and overwrite an existing note from another case.
+        request_data.pop('note_id', None)
         note_schema = CaseNoteSchema()
         note_schema.verify_directory_id(request_data, caseid=case_identifier)
 

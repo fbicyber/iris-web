@@ -19,7 +19,7 @@ import marshmallow
 from sqlalchemy import func, and_
 from typing import List
 
-from app import db
+from app.extensions import db
 from app.datamgmt.exceptions.ElementExceptions import ElementInUseException
 from app.datamgmt.exceptions.ElementExceptions import ElementNotFoundException
 from app.models import Cases
@@ -98,6 +98,11 @@ def get_client_cases(client_id: int):
 
 
 def create_client(data) -> Client:
+    # Never load a client-supplied primary key on create: marshmallow-sqlalchemy would
+    # fetch and overwrite an arbitrary existing customer instead of creating a new one,
+    # and the custom_attributes post_load hook would merge attacker data into that
+    # foreign customer and commit it (CWE-639).
+    data.pop('customer_id', None)
 
     client_schema = CustomerSchema()
     client = client_schema.load(data)

@@ -30,7 +30,7 @@ from pathlib import Path
 from werkzeug.utils import redirect
 
 import app
-from app import db
+from app.extensions import db
 from app.datamgmt.datastore.datastore_db import datastore_add_child_node
 from app.datamgmt.datastore.datastore_db import datastore_add_file_as_evidence
 from app.datamgmt.datastore.datastore_db import datastore_add_file_as_ioc
@@ -41,6 +41,7 @@ from app.datamgmt.datastore.datastore_db import datastore_get_file
 from app.datamgmt.datastore.datastore_db import datastore_get_interactive_path_node
 from app.datamgmt.datastore.datastore_db import datastore_get_local_file_path
 from app.datamgmt.datastore.datastore_db import datastore_get_path_node
+from app.datamgmt.datastore.datastore_db import datastore_is_path_descendant
 from app.datamgmt.datastore.datastore_db import datastore_get_standard_path
 from app.datamgmt.datastore.datastore_db import datastore_rename_node
 from app.datamgmt.datastore.datastore_db import ds_list_tree
@@ -62,6 +63,15 @@ datastore_blueprint = Blueprint(
 
 logger = app.logger
 
+ALLOWED_FIELDS_DS_FILE = [
+    'file_original_name',
+    'file_description',
+    'file_is_ioc',
+    'file_is_evidence',
+    'file_password',
+    'file_tags',
+    'file_parent_id'
+]
 
 @datastore_blueprint.route('/datastore/list/tree', methods=['GET'])
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
@@ -202,8 +212,13 @@ def datastore_update_file(cur_id: int, caseid: int):
 
     dsf_schema = DSFileSchema()
     try:
-
-        dsf_sc = dsf_schema.load(request.form, instance=dsf, partial=True)
+        # Ensure the form only contains fields that are allowed to be updated
+        # Remove the fields that are not allowed to be updated
+        form_data = request.form.to_dict()
+        for key in list(form_data.keys()):
+            if key not in ALLOWED_FIELDS_DS_FILE:
+                form_data.pop(key)
+        dsf_sc = dsf_schema.load(form_data, instance=dsf, partial=True)
         add_obj_history_entry(dsf_sc, 'updated')
 
         dsf.file_is_ioc = request.form.get('file_is_ioc') is not None or request.form.get('file_is_ioc') is True
@@ -280,6 +295,9 @@ def datastore_move_folder(cur_id: int, caseid: int):
     if dsp.path_id == dsp_dst.path_id:
         return response_error("If that's true, then I've made a mistake, and you should kill me now.")
 
+    if datastore_is_path_descendant(dsp_dst.path_id, dsp.path_id, caseid):
+        return response_error("Cannot move a folder into itself or one of its own subfolders")
+
     dsp.path_parent_id = dsp_dst.path_id
     db.session.commit()
 
@@ -324,7 +342,12 @@ def datastore_add_file(cur_id: int, caseid: int):
     dsf_schema = DSFileSchema()
     try:
 
-        dsf_sc = dsf_schema.load(request.form, partial=True)
+        form_data = request.form.to_dict()
+        for key in list(form_data.keys()):
+            if key not in ALLOWED_FIELDS_DS_FILE:
+                form_data.pop(key)
+
+        dsf_sc = dsf_schema.load(form_data, partial=True)
 
         dsf_sc.file_parent_id = dsp.path_id
         dsf_sc.added_by_user_id = current_user.id

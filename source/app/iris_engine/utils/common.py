@@ -16,12 +16,12 @@
 #  along with this program; if not, write to the Free Software Foundation,
 #  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 import os
+import re
 from datetime import datetime
 import pytz
-from dateutil import tz
 from jinja2.sandbox import SandboxedEnvironment
 
-from app import app
+from flask import current_app as app
 
 
 def build_upload_path(case_customer, case_name, module, create=False):
@@ -58,15 +58,33 @@ def build_upload_path(case_customer, case_name, module, create=False):
 def parse_bf_date_format(input_str):
     date_value = input_str.strip()
 
+    # Normalize timestamps with comma as fractional separator (e.g. 2025-01-11T18:42:11,344110+00:00)
+    date_value = re.sub(r'(\d{2}:\d{2}:\d{2}),(\d+)', r'\1.\2', date_value)
+
+    # Strip optional surrounding brackets from nginx-style timestamps (e.g. [17/Sep/2026:03:51:23 -0700])
+    if date_value.startswith('['):
+        date_value = date_value[1:]
+    if date_value.endswith(']'):
+        date_value = date_value[:-1]
+
     if len(date_value) == 10 and '-' not in date_value and '.' not in date_value and '/' not in date_value:
-        # Assume linux timestamp, from 1966 to 2286
+        # Assume linux timestamp (seconds), from 1966 to 2286
         date = datetime.fromtimestamp(int(date_value))
         return date
 
     elif len(date_value) == 13 and '-' not in date_value and '.' not in date_value and '/' not in date_value:
-        # Assume microsecond timestamp
+        # Assume millisecond timestamp
         date = datetime.fromtimestamp(int(date_value) / 1000)
+        return date
 
+    elif len(date_value) == 16 and '-' not in date_value and '.' not in date_value and '/' not in date_value:
+        # Assume microsecond timestamp
+        date = datetime.fromtimestamp(int(date_value) / 1_000_000)
+        return date
+
+    elif len(date_value) == 19 and '-' not in date_value and '.' not in date_value and '/' not in date_value:
+        # Assume nanosecond timestamp
+        date = datetime.fromtimestamp(int(date_value) / 1_000_000_000)
         return date
 
     else:
@@ -88,6 +106,10 @@ def parse_bf_date_format(input_str):
                     '%Y-%d-%m %H:%M%z', '%Y-%d-%m %H:%M:%S%z', '%Y-%d-%m %H:%M:%S.%f%z',
                     '%Y-%d-%m %H:%M %Z', '%Y-%d-%m %H:%M:%S %Z', '%Y-%d-%m %H:%M:%S.%f %Z',
 
+                    '%m/%d/%Y %H:%M', '%m/%d/%Y %H:%M:%S', '%m/%d/%Y %H:%M:%S.%f',
+                    '%m.%d.%Y %H:%M', '%m.%d.%Y %H:%M:%S', '%m.%d.%Y %H:%M:%S.%f',
+                    '%m-%d-%Y %H:%M', '%m-%d-%Y %H:%M:%S', '%m-%d-%Y %H:%M:%S.%f',
+
                     '%d/%m/%Y %H:%M', '%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M:%S.%f',
                     '%d.%m.%Y %H:%M', '%d.%m.%Y %H:%M:%S', '%d.%m.%Y %H:%M:%S.%f',
                     '%d-%m-%Y %H:%M', '%d-%m-%Y %H:%M:%S', '%d-%m-%Y %H:%M:%S.%f',
@@ -99,6 +121,8 @@ def parse_bf_date_format(input_str):
 
                     '%d %b %Y %H:%M', '%d %b %Y %H:%M:%S', '%d %b %Y %H:%M:%S.%f',
                     '%d %b %y %H:%M', '%d %b %y %H:%M:%S', '%d %b %y %H:%M:%S.%f',
+
+                    '%d/%b/%Y:%H:%M:%S %z',
 
                     '%Y-%m-%d', '%d.%m.%Y', '%d/%m/%Y', "%A, %B %d, %Y", "%A %B %d, %Y", "%A %B %d %Y",
                     '%d %B %Y'):
@@ -138,8 +162,8 @@ def get_all_timezones():
 
     # go through all timezones 
     for timezone_str in pytz.all_timezones:
-        tz = pytz.timezone(timezone_str)
-        localized_now = now.astimezone(tz)  # convert UTC time to the specific timezone
+        tz_name = pytz.timezone(timezone_str)
+        localized_now = now.astimezone(tz_name)  # convert UTC time to the specific timezone
         offset = localized_now.utcoffset()
 
         # format offset string, i.e +/- 00:00
@@ -162,20 +186,20 @@ def get_all_timezones():
     timezone_info.sort(key=lambda x: x["offset_seconds"])
 
     # keep utc at the top
-    utc_entry = next((tz for tz in timezone_info if tz["timezone"] == "UTC"), None)
+    utc_entry = next((tz_name for tz_name in timezone_info if tz_name["timezone"] == "UTC"), None)
     if utc_entry:
         timezone_info.remove(utc_entry)
         timezone_info.insert(0, utc_entry)
 
     # format output into dict and list of tuples, since case_timeline_routes depends on this format
-    for tz in timezone_info:
+    for tz_name in timezone_info:
         timezone_info_dict[timezone_id] = {
-            "timezone": tz["timezone"],
-            "offset": tz["offset"]
+            "timezone": tz_name["timezone"],
+            "offset": tz_name["offset"]
         }
 
         # for dropdown form
-        timezone_info_for_form.append((timezone_id, f"{tz['timezone']}, UTC{tz['offset']}"))
+        timezone_info_for_form.append((timezone_id, f"{tz_name['timezone']}, UTC{tz_name['offset']}"))
         timezone_id += 1
 
     return timezone_info_dict, timezone_info_for_form

@@ -18,6 +18,7 @@
                     <div class="row ml-1 my-2 w-100">
                         <div class="col-md-5">
                             <form class="form">
+                                <label for="datatable_search_bar" class="sr-only">Search evidence</label>
                                 <input type="text" id="datatable_search_bar" class="form-control form-control-custom-search" placeholder="Search">
                             </form>
                         </div>
@@ -27,7 +28,7 @@
                     </div>
 					<ul class="navbar-nav topbar-nav ml-md-auto align-items-center page-navigation page-navigation-style-2 page-navigation-secondary">
                         <li class="nav-item ml-2">
-                            <span class="text-white text-sm mr-2" id="last_resfresh">Loading</span>
+                            <span class="text-white text-sm mr-2" id="last_resfresh" role="status" aria-live="polite">Loading</span>
                         </li>
                         <li class="nav-item">
                             <button class="btn btn-primary btn-sm" onclick="reload_rfiles(true);">
@@ -39,6 +40,17 @@
                                  <span class="menu-title">Register Evidence</span>
                             </button>
                         </li>
+                        <li class="nav-item"></li>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-border btn-black" id="evidence_actions_dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Open evidence actions menu">
+                                    <span class="menu-title"><i class="fas fa-ellipsis-v"></i></span>
+                                </button>
+                                <div class="dropdown-menu" aria-labelledby="evidence_actions_dropdown">
+                                    <a class="dropdown-item" href="#" onclick="evidenceToExcel();"><small class="fa fa-download mr-2"></small> Download as Excel</a>
+                                    <a class="dropdown-item" href="#" onclick="fire_upload_excel_evidence();"><small class="fa fa-upload mr-2"></small> Upload Excel of evidence</a>
+                                </div>
+                            </div>
+                        </li>
 					</ul>
                 </div>
 
@@ -46,7 +58,7 @@
 			</nav>
         <div class="page-inner">
             <div class="row">
-                <div class="loader1 text-center ml-mr-auto" id="loading_msg">Loading...</div>
+                <div class="loader1 text-center ml-mr-auto" id="loading_msg" role="status" aria-live="polite">Loading...</div>
                 <div class="col-md-12">
                     <div class="card" id="card_main_load" style="display:none;">
                         <div class="card-body">
@@ -64,6 +76,7 @@
                                             <th>Hash</th>
                                             <th>Size (bytes)</th>
                                             <th>Description</th>
+                                            <th>Host</th>
                                             <th>Added by</th>
                                         </tr>
                                     </thead>
@@ -74,6 +87,7 @@
                                             <th>Hash</th>
                                             <th>Size(bytes)</th>
                                             <th>Description</th>
+                                            <th>Host</th>
                                             <th>Added by</th>
                                         </tr>
                                     </tfoot>
@@ -83,19 +97,61 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Modal for Register Evidence -->
+            <div class="modal" tabindex="-1" role="dialog" aria-label="Register or edit evidence" id="modal_add_rfiles" data-backdrop="true">
+                <div class="modal-lg modal-dialog" role="document">
+                    <div class="modal-content" id="modal_add_rfiles_content">
+
+                    </div>
+                    <!-- /.modal-content -->
+                </div>
+                <!-- /.modal-dialog -->
+            </div>
+            {% endif %}
         </div>
 
-        <div class="modal" tabindex="-1" role="dialog" id="modal_add_rfiles" data-backdrop="true">
+         <!-- Modal for Upload Excel -->
+        <div class="modal" tabindex="-1" role="dialog" aria-labelledby="modal_upload_excel_evidence_title" id="modal_upload_excel_evidence" data-backdrop="true">
             <div class="modal-lg modal-dialog" role="document">
-                <div class="modal-content" id="modal_add_rfiles_content">
+                <form method="post" action="" id="form_upload_excel_events">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 id="modal_upload_excel_evidence_title">Upload evidence list (Excel format)</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label for="csv_format" class="placeholder">Expected Excel File format</label>
+                                <textarea id="csv_format" class="form-control col-md-12 col-sm-12 sizable-textarea" rows="2"
+                                    disabled>id,filename,type,file_hash,file_size,file_description,host</textarea>                    
+                            </div>
+                            <div class="form-group">
+                                <label for="evidence_excel_format_example" class="placeholder">Excel File format example</label>
+                                <textarea id="evidence_excel_format_example" class="form-control col-md-12 col-sm-12 sizable-textarea" rows="3" disabled>
+                                    id,filename,type,file_hash,file_size,file_description,host
+                                    0,file.txt,file,1234d3cf,1024,"description","PC"
+                                </textarea>
+                            </div>
+                            <div class="form-group">
+                              <label for="input_upload_excel_evidence" class="placeholder">Choose Excel file to import : </label>
+                               <input id="input_upload_excel_evidence" type="file"
+                                    accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                            </div>
+                        </div>
+                        <div class='invalid-feedback' id='ioc-invalid-msg' role="alert" aria-live="assertive"></div>
+                        <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-dark mr-auto" onclick="generate_events_sample_excel();">Download sample Excel</button>
+                                <button type="button" class="btn btn-outline-success" onclick="upload_excel_evidence();">Upload</button>
+                        </div>
 
-                </div>
-                <!-- /.modal-content -->
+                    </div>
+                    <!-- /.modal-content -->
+                </form>
             </div>
             <!-- /.modal-dialog -->
         </div>
-
-        {% endif %}
     </div>
 
     {% include 'includes/footer.html' %}

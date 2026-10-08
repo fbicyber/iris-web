@@ -47,7 +47,7 @@ then
 
   else
     echo "Restarting IRIS Web app"
-    exec gunicorn app:app --worker-class eventlet --bind 0.0.0.0:8000 --timeout 180 --worker-connections 1000 --log-level=info
+    exec gunicorn app:app --worker-class gevent --bind 0.0.0.0:8000 --timeout 3600 --workers 2 --worker-connections 1000 --log-level=info
 
   fi # Worker condition
 

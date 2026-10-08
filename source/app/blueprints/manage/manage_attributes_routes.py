@@ -23,7 +23,7 @@ from flask import render_template
 from flask import request
 from flask import url_for
 
-from app import db
+from app.extensions import db
 from app.datamgmt.manage.manage_attribute_db import update_all_attributes
 from app.datamgmt.manage.manage_attribute_db import validate_attribute
 from app.forms import AddAssetForm

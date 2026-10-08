@@ -8,7 +8,7 @@
                         </div>
                         <div class="col">
                             <div class="row float-right">
-                                <button class="btn bg-transparent" title="Minimize" onclick="modal_minimized('modal_comment', 'Comment {{ element_type }}');"> <i class='fa fa-minus'></i> </button>
+                                <button class="btn bg-transparent" title="Minimize" aria-label="Minimize comments dialog" onclick="modal_minimized('modal_comment', 'Comment {{ element_type }}');"> <i class='fa fa-minus'></i> </button>
                                 <button type="button" class="float-right btn bg-transparent" data-dismiss="modal" aria-label="Close"><span
                                     aria-hidden="true"><i class="fa fa-times"></i></span></button>
                             </div>
@@ -30,7 +30,7 @@
                             </div>
                             <div class="row mb-3">
                                 <div class="col-12 comment-content" id="container_comment_content">
-                                    <div id="comment_message" contenteditable="true" spellcheck="true" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}"></div>
+                                    <div id="comment_message" contenteditable="true" spellcheck="true" role="textbox" aria-label="Comment editor" aria-multiline="true" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}"></div>
                                     <textarea id="comment_content" rows="2" style="display: none"></textarea>
                                 </div>
                                 <div class="col-12 comment-content" id="container_comment_preview" style="display:none;">

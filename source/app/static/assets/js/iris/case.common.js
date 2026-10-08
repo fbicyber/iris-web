@@ -32,7 +32,8 @@ $(document).ready(function(){
     });
     // Check if io is avalaible
     if (typeof io !== 'undefined' && io !== undefined) {
-        collab_case = io.connect();
+        // Use shared socket manager instead of creating new connection
+        collab_case = window.socketManager.getSocket();
         collab_case.emit('join-case-obj-notif', { 'channel': 'case-' + get_caseid() });
     }
 });

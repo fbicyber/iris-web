@@ -16,12 +16,42 @@
 #  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: iriswebapp_redis
+    restart: always
+    networks:
+      - iris_backend
+
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: iriswebapp_rabbitmq
     restart: always
     networks:
       - iris_backend
+
+  fs_perms:
+    image: alpine
+    container_name: iriswebapp_fs_perms
+    user: root
+    volumes:
+      - ./rustfs/data:/data
+    command: chown -R 10001:10001 /data
+
+  fs:
+    image: rustfs/rustfs:latest
+    container_name: iriswebapp_fs
+    hostname: iriswebapp-fs
+    restart: always
+    networks:
+      - iris_backend
+    volumes:
+      - ./rustfs/data:/data
+    environment:
+      - RUSTFS_SECRET_KEY
+      - RUSTFS_ACCESS_KEY
+    depends_on:
+      - "fs_perms"
 
   db:
     container_name: iriswebapp_db
@@ -55,6 +85,8 @@ services:
     depends_on:
       - "rabbitmq"
       - "db"
+      - "fs"
+      - "redis"
     env_file:
       - .env
     environment:
@@ -64,6 +96,10 @@ services:
       - POSTGRES_ADMIN_PASSWORD
       - POSTGRES_SERVER
       - POSTGRES_PORT
+      - RUSTFS_SERVER
+      - RUSTFS_PORT
+      - RUSTFS_ACCESS_KEY
+      - RUSTFS_SECRET_KEY
       - IRIS_SECRET_KEY
       - IRIS_SECURITY_PASSWORD_SALT
     networks:

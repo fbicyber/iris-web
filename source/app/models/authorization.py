@@ -1,4 +1,5 @@
 import enum
+import hashlib
 import secrets
 import pyotp
 import uuid
@@ -15,7 +16,15 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from app import db
+from app.extensions import db
+
+
+def hash_api_key(raw_key: str) -> str:
+    """Hash an API key for storage and comparison. SHA-256 is sufficient here: the input
+    is a high-entropy, randomly generated 64-byte token (not a low-entropy secret like a
+    password), so a slow KDF such as bcrypt is not needed to resist brute force.
+    """
+    return hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
 
 
 class CaseAccessLevel(enum.Enum):
@@ -46,6 +55,11 @@ class Permissions(enum.Enum):
 
     activities_read = 0x400
     all_activities_read = 0x800
+
+    statistics_read = 0x1000
+    custom_dashboards_read = 0x2000
+    custom_dashboards_write = 0x4000
+    custom_dashboards_share = 0x8000
 
 
 class Organisation(db.Model):
@@ -113,7 +127,7 @@ class UserCaseAccess(db.Model):
     __tablename__ = "user_case_access"
 
     id = Column(BigInteger, primary_key=True, nullable=False)
-    user_id = Column(BigInteger, ForeignKey('user.id'), nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False)
     case_id = Column(BigInteger, ForeignKey('cases.case_id'), nullable=False)
     access_level = Column(BigInteger, nullable=False)
 
@@ -127,7 +141,7 @@ class UserCaseEffectiveAccess(db.Model):
     __tablename__ = "user_case_effective_access"
 
     id = Column(BigInteger, primary_key=True, nullable=False)
-    user_id = Column(BigInteger, ForeignKey('user.id'), nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False)
     case_id = Column(BigInteger, ForeignKey('cases.case_id'), nullable=False)
     access_level = Column(BigInteger, nullable=False)
 
@@ -141,7 +155,7 @@ class UserOrganisation(db.Model):
     __tablename__ = "user_organisation"
 
     id = Column(BigInteger, primary_key=True, nullable=False)
-    user_id = Column(BigInteger, ForeignKey('user.id'), nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False)
     org_id = Column(BigInteger, ForeignKey('organisations.org_id'), nullable=False)
     is_primary_org = Column(Boolean, nullable=False)
 
@@ -155,7 +169,7 @@ class UserGroup(db.Model):
     __tablename__ = "user_group"
 
     id = Column(BigInteger, primary_key=True, nullable=False)
-    user_id = Column(BigInteger, ForeignKey('user.id'), nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False)
     group_id = Column(BigInteger, ForeignKey('groups.group_id'), nullable=False)
 
     user = relationship('User')
@@ -168,7 +182,7 @@ class UserClient(db.Model):
     __tablename__ = "user_client"
 
     id = Column(BigInteger, primary_key=True, nullable=False)
-    user_id = Column(BigInteger, ForeignKey('user.id'), nullable=False)
+    user_id = Column(BigInteger, ForeignKey('users.id'), nullable=False)
     client_id = Column(BigInteger, ForeignKey('client.client_id'), nullable=False)
     access_level = Column(BigInteger, nullable=False)
     allow_alerts = Column(Boolean, nullable=False)
@@ -180,7 +194,7 @@ class UserClient(db.Model):
 
 
 class User(UserMixin, db.Model):
-    __tablename__ = 'user'
+    __tablename__ = 'users'
 
     id = Column(BigInteger, primary_key=True)
     user = Column(String(64), unique=True)
@@ -189,18 +203,21 @@ class User(UserMixin, db.Model):
     uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, nullable=False,
                   server_default=text('gen_random_uuid()'), unique=True)
     password = Column(String(500))
-    ctx_case = Column(Integer)
     ctx_human_case = Column(String(256))
+    ctx_case = Column(Integer)
     active = Column(Boolean())
     api_key = Column(Text(), unique=True)
     external_id = Column(Text, unique=True)
     in_dark_mode = Column(Boolean())
     has_mini_sidebar = Column(Boolean(), default=False)
-    has_deletion_confirmation = Column(Boolean(), default=False)
+    has_deletion_confirmation = Column(Boolean(), default=True)
     is_service_account = Column(Boolean(), default=False)
     mfa_secrets = Column(Text, nullable=True)
     webauthn_credentials = Column(JSON, nullable=True)
     mfa_setup_complete = Column(Boolean(), default=False)
+    # Time-step of the last successfully verified TOTP code, so a code cannot be replayed
+    # a second time within the 30-second window it remains valid for (RFC 6238 SS5.2).
+    mfa_last_verified_step = Column(BigInteger, nullable=True)
 
     def __init__(self, user: str, name: str, email: str, password: str, active: bool,
                  external_id: str = None, is_service_account: bool = False, mfa_secret: str = None,
@@ -221,7 +238,11 @@ class User(UserMixin, db.Model):
 
     def save(self):
 
-        self.api_key = secrets.token_urlsafe(nbytes=64)
+        raw_api_key = secrets.token_urlsafe(nbytes=64)
+        self.api_key = hash_api_key(raw_api_key)
+        # Not persisted (not a mapped column): lets the caller return the raw key to the
+        # admin once, immediately after creation, without ever storing it in plaintext.
+        self.raw_api_key = raw_api_key
 
         # inject self into db session
         db.session.add(self)

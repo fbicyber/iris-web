@@ -37,7 +37,7 @@ from docx_generator.exceptions import rendering_error
 from flask_login import current_user
 from sqlalchemy import desc
 
-from app import app
+from flask import current_app as app
 from app.datamgmt.activities.activities_db import get_auto_activities
 from app.datamgmt.activities.activities_db import get_manual_activities
 from app.datamgmt.case.case_db import case_get_desc_crc
@@ -55,6 +55,24 @@ from app.iris_engine.reporter.ImageHandler import ImageHandler
 
 LOG_FORMAT = '%(asctime)s :: %(levelname)s :: %(module)s :: %(funcName)s :: %(message)s'
 log.basicConfig(level=log.INFO, format=LOG_FORMAT)
+
+
+def _safe_report_output_path(tmp_dir, name):
+    """Build a report output path guaranteed to stay inside tmp_dir.
+
+    `name` is built by substituting %case_name%/%customer%/etc into the template's
+    naming format, and those values are user-controlled (case name, customer name).
+    Stripping path separators means the substituted values can never introduce a new
+    path component - the whole name collapses to a single flat filename - and the
+    containment check below is kept as defense in depth on top of that.
+    """
+    safe_name = name.replace('/', '_').replace('\\', '_')
+    output_path = os.path.abspath(os.path.join(tmp_dir, safe_name))
+    tmp_dir_abs = os.path.abspath(tmp_dir)
+    if output_path != tmp_dir_abs and not output_path.startswith(tmp_dir_abs + os.sep):
+        raise ValueError('Resolved report path escapes the temporary directory')
+
+    return output_path
 
 
 class IrisReportMaker(object):
@@ -83,7 +101,7 @@ class IrisReportMaker(object):
         elif doc_type == 'Activities':
             case_info = self._get_activity_info()
         else:
-            log.error("Unknown report type")
+            app.logger.error("Unknown report type")
             return None
         return case_info
 
@@ -296,27 +314,30 @@ class IrisMakeDocReport(IrisReportMaker):
         Actually generates the report
         :return:
         """
+        app.logger.info("generate_doc_report started with doc_type: {}".format(doc_type))
+
         if doc_type == 'Investigation':
             case_info = self._get_case_info()
         elif doc_type == 'Activities':
             case_info = self._get_activity_info()
         else:
-            log.error("Unknown report type")
+            app.logger.error("Unknown report type")
             return None
 
         report = CaseTemplateReport.query.filter(CaseTemplateReport.id == self._report_id).first()
+        app.logger.info("CaseTemplateReport query result: {}".format(report))
 
         name = "{}".format("{}.docx".format(report.naming_format))
         name = name.replace("%code_name%", case_info['doc_id'])
         name = name.replace('%customer%', case_info['case']['client']['customer_name'])
         name = name.replace('%case_name%', case_info['case'].get('name'))
         name = name.replace('%date%', datetime.utcnow().strftime("%Y-%m-%d"))
-        output_file_path = os.path.join(self._tmp, name)
+        output_file_path = _safe_report_output_path(self._tmp, name)
 
         try:
 
             if not self._safe_mode:
-                image_handler = ImageHandler(template=None, base_path='/')
+                image_handler = ImageHandler(template=None, base_path='/', caseid=self._caseid)
             else:
                 image_handler = None
 
@@ -562,7 +583,7 @@ class IrisMakeMdReport(IrisReportMaker):
         name = name.replace('%date%', datetime.utcnow().strftime("%Y-%m-%d"))
 
         # Build output file
-        output_file_path = os.path.join(self._tmp, name)
+        output_file_path = _safe_report_output_path(self._tmp, name)
 
         try:
             env = IrisJinjaEnv()
@@ -576,7 +597,7 @@ class IrisMakeMdReport(IrisReportMaker):
                 html_file.write(output_text)
 
         except Exception as e:
-            log.exception("Error while generating report: {}".format(e))
+            app.logger.exception("Error while generating report: {}".format(e))
             return None, e.__str__()
 
         return output_file_path, 'Report generated'

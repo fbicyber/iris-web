@@ -53,6 +53,7 @@ const selectsConfig = {
 
 let alertStatusList = {};
 let alertResolutionList = {};
+const selectOptionsLoaded = {};
 
 function getAlertStatusList() {
     get_request_api('/manage/alert-status/list')
@@ -861,8 +862,6 @@ function renderAlert(alert, expanded=false, modulesOptionsAlertReq,
   alert.alert_title = alert.alert_title ? filterXSS(alert.alert_title) : 'No title provided';
   alert.alert_description = alert.alert_description ? filterXSS(alert.alert_description) : 'No description provided';
   alert.alert_source = alert.alert_description ? filterXSS(alert.alert_source) : 'No source provided';
-  alert.alert_source_link = filterXSS(alert.alert_source_link);
-  alert.alert_source_ref = filterXSS(alert.alert_source_ref);
   alert.alert_note = filterXSS(alert.alert_note);
 
   let menuOptionsHtmlAlert = '';
@@ -994,8 +993,8 @@ function renderAlert(alert, expanded=false, modulesOptionsAlertReq,
                       ${alert.alert_source_link ? `<div class="row mt-2">
                         <div class="col-md-3"><b>Source Link:</b></div>
                         <div class="col-md-9 copy-value">${
-                            alert.alert_source_link && alert.alert_source_link.startsWith('http') 
-                            ? `<a href="${alert.alert_source_link}" target="_blank" rel="noopener noreferrer">${alert.alert_source_link}</a>
+                            alert.alert_source_link && alert.alert_source_link.startsWith('http')
+                            ? `<a href="${escapeHtml(alert.alert_source_link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(alert.alert_source_link)}</a>
                                 <button class="copy-btn ml-2" data-value="${escapeHtml(alert.alert_source_link)}">
                                     <i class="fa fa-copy text-dark"></i>
                                 </button>`
@@ -1005,7 +1004,7 @@ function renderAlert(alert, expanded=false, modulesOptionsAlertReq,
                       ${alert.alert_source_ref ? `<div class="row mt-2">
                         <div class="col-md-3"><b>Source Reference:</b></div>
                         <div class="col-md-9 copy-value">
-                            ${alert.alert_source_ref}
+                            ${escapeHtml(alert.alert_source_ref)}
                             <button class="copy-btn ml-2" data-value="${escapeHtml(alert.alert_source_ref)}">
                                     <i class="fa fa-copy text-dark"></i>
                             </button>
@@ -1180,7 +1179,6 @@ function renderAlert(alert, expanded=false, modulesOptionsAlertReq,
                                                 <i class="fa fa-copy text-dark"></i>
                                             </button>
                                        </td>
-                                       <td>${asset.asset_name ? filterXSS(asset.asset_name) : '-'}</td>
                                        <td>${asset.asset_description ? filterXSS(asset.asset_description) : '-'}</td>
                                        <td>${asset.asset_type ? filterXSS(asset.asset_type.asset_name) : '-'}</td>
                                        <td>${asset.asset_domain ? filterXSS(asset.asset_domain) : '-'}</td>
@@ -1283,11 +1281,13 @@ async function showAlertHistory(alertId) {
     let alertData = alertDataReq.data;
     let entryDiv = $('#modal_alert_history_content');
 
+    entryDiv.empty();
+
     for (let entry in alertData.modification_history)  {
         let date = new Date(Math.floor(entry) * 1000);
         let dateStr = date.toLocaleString();
         let entryStr = alertData.modification_history[entry];
-        entryDiv.append('<div class="row"><div class="col-3">' + dateStr + '</div><div class="col-3">' + entryStr.user + '</div><div class="col-6">'+ entryStr.action +'</div></div>');
+        entryDiv.append('<div class="row"><div class="col-3">' + dateStr + '</div><div class="col-3">' + sanitizeHTML(entryStr.user) + '</div><div class="col-6">'+ sanitizeHTML(entryStr.action) +'</div></div>');
 
     }
 
@@ -1467,7 +1467,8 @@ async function updateAlerts(page, per_page, filters = {}, paging=false){
 
 $('#alertsPerPage').on('change', (e) => {
   const per_page = parseInt(e.target.value, 10);
-  updateAlerts(1, per_page, undefined, sortOrder); // Update the alerts list with the new 'per_page' value and reset to the first page
+    const filters = getFiltersFromUrl();
+    updateAlerts(1, per_page, filters); // Keep current filters when changing the page size
 });
 
 
@@ -1552,12 +1553,16 @@ $('#resetFilters').on('click', function () {
   const form = $('#alertFilterForm');
 
     // Reset all input fields
-    form.find('input, select').each((_, element) => {
-        if (element.type === 'checkbox') {
-          $(element).prop('checked', false);
-        } else {
-          $(element).val('');
-        }
+        form.find('input, select').each((_, element) => {
+                const $element = $(element);
+                if (element.type === 'checkbox') {
+                    $element.prop('checked', false);
+                } else if ($element.is('select') && $element.hasClass('selectpicker')) {
+                    $element.selectpicker('val', '');
+                    $element.selectpicker('refresh');
+                } else {
+                    $element.val('');
+                }
     });
 
     editor.setValue("", 1);
@@ -1724,7 +1729,7 @@ async function fetchSavedFilters() {
                 `;
 
                 data.data.forEach(filter => {
-                    let filter_name = filterXSS(filter.filter_name);
+                    let filter_name = escapeHtml(filter.filter_name);
                     dropdownHtml += `
                                 <option value="${filter.filter_id}" data-content='<div class="d-flex align-items-center"><span>${filter_name} ${filter.filter_is_private ? '(private)' : ''}</span><div class="trash-wrapper hidden-trash"><i class="fas fa-trash delete-filter text-danger" id="dropfilter-id-${filter.filter_id}" title="Delete filter"></i></div></div>'>${filter_name}</option>
                     `;
@@ -1851,7 +1856,7 @@ async function changeAlertOwner(alertId) {
   const userSelect = $('#changeOwnerAlertSelect');
   userSelect.empty();
   users.forEach((user) => {
-    userSelect.append(`<option value="${user.user_id}">${user.user_name}</option>`);
+    userSelect.append(`<option value="${user.user_id}">${sanitizeHTML(user.user_name)}</option>`);
   });
 
   $('#alertIDAssignModal').text(alertId);
@@ -1893,7 +1898,7 @@ async function changeBatchAlertOwner(alertId) {
       const userSelect = $('#changeOwnerAlertSelect');
       userSelect.empty();
       users.forEach((user) => {
-        userSelect.append(`<option value="${user.user_id}">${user.user_name}</option>`);
+        userSelect.append(`<option value="${user.user_id}">${sanitizeHTML(user.user_name)}</option>`);
       });
 
       $('#alertIDAssignModal').text(alertId);
@@ -1953,18 +1958,21 @@ function setFormValuesFromUrl() {
       if (input.prop('type') === 'checkbox') {
         input.prop('checked', value in ['true', 'y', 'yes', '1', 'on']);
       } else if (input.is('select') && selectsConfig[input.attr('id')]) {
-        const ajaxCall = new Promise((resolve, reject) => {
-          input.one('click', function () {
-            fetchSelectOptions(input.attr('id'), selectsConfig[input.attr('id')]).then(() => {
-              input.val(value);
-              resolve();
-            }).catch(error => {
-              console.error(error);
-              reject(error);
-            });
-          }).trigger('click');
-        });
-        ajaxCalls.push(ajaxCall);
+                const selectId = input.attr('id');
+                const ajaxCall = fetchSelectOptions(selectId, selectsConfig[selectId])
+                    .then(() => {
+                        if (input.hasClass('selectpicker')) {
+                            input.selectpicker('val', value);
+                            input.selectpicker('refresh');
+                        } else {
+                            input.val(value);
+                        }
+                    })
+                    .catch(error => {
+                        console.error(error);
+                        throw error;
+                    });
+                ajaxCalls.push(ajaxCall);
       } else {
         input.val(value);
       }
@@ -1985,37 +1993,80 @@ function setFormValuesFromUrl() {
 }
 
 
-function fetchSelectOptions(selectElementId, configItem) {
-  return new Promise((resolve, reject) => {
-    get_request_api(configItem.url)
-      .then(function (data) {
-        if (!notify_auto_api(data, true)) {
-          reject('Failed to fetch options');
-          return;
-        }
-        const selectElement = $(`#${selectElementId}`);
-        selectElement.empty();
-        selectElement.append($('<option>', {
-          value: null,
-          text: ''
-        }));
-        if (selectElementId === 'alert_owner_id') {
-            selectElement.append($('<option>', {
-                value: '-1',
-                text: 'Unassigned'
-            }));
-        }
+function fetchSelectOptions(selectElementId, configItem, forceReload = false) {
+    const selectElement = $(`#${selectElementId}`);
+    if (!selectElement.length) {
+        return Promise.resolve();
+    }
 
-        data.data.forEach(function (item) {
-          selectElement.append($('<option>', {
-            value: item[configItem.id],
-            text: item[configItem.name]
-          }));
+    if (!forceReload && selectOptionsLoaded[selectElementId]) {
+        if (selectElement.hasClass('selectpicker')) {
+            selectElement.selectpicker('refresh');
+        }
+        return Promise.resolve();
+    }
+
+    return get_request_api(configItem.url)
+        .then(function (data) {
+            if (!notify_auto_api(data, true)) {
+                throw new Error('Failed to fetch options');
+            }
+
+            selectElement.empty();
+            selectElement.append($('<option>', {
+                value: '',
+                text: ''
+            }));
+            if (selectElementId === 'alert_owner_id') {
+                selectElement.append($('<option>', {
+                    value: '-1',
+                    text: 'Unassigned'
+                }));
+            }
+
+            data.data.forEach(function (item) {
+                selectElement.append($('<option>', {
+                    value: item[configItem.id],
+                    text: item[configItem.name]
+                }));
+            });
+
+            selectOptionsLoaded[selectElementId] = true;
+
+            if (selectElement.hasClass('selectpicker')) {
+                selectElement.selectpicker('refresh');
+            }
+        })
+        .catch((error) => {
+            selectOptionsLoaded[selectElementId] = false;
+            throw error;
         });
-        resolve();
-      });
-  });
 }
+
+    function initializeFilterSelectPickers() {
+        Object.entries(selectsConfig).forEach(([selectElementId, configItem]) => {
+            const selectElement = $(`#${selectElementId}`);
+            if (!selectElement.length) {
+                return;
+            }
+
+            if (selectElement.hasClass('form-control')) {
+                selectElement.removeClass('form-control');
+            }
+
+            selectElement.addClass('selectpicker');
+            selectElement.attr('data-live-search', 'true');
+            selectElement.attr('data-style', 'btn-sm');
+            selectElement.attr('data-width', '100%');
+
+            selectElement.selectpicker();
+                selectElement.selectpicker('refresh');
+
+            selectElement.off('show.bs.select.alerts').on('show.bs.select.alerts', function () {
+                fetchSelectOptions(selectElementId, configItem).catch(error => console.error(error));
+            });
+        });
+    }
 
 function getBatchAlerts() {
     const selectedAlerts = [];
@@ -2125,13 +2176,190 @@ function refreshAlertRelationships(alertId) {
         fetch_open_cases, fetch_closed_cases);
 }
 
+let addAlertAssetTypes = [];
+let addAlertIocTypes = [];
+let addAlertCaseAssets = [];
+let addAlertCaseIocs = [];
+
+function addAlertBuildSelectOptions(items, idField, nameField, includeEmpty = true) {
+    let options = includeEmpty ? '<option value=""></option>' : '';
+    items.forEach((item) => {
+        options += `<option value="${item[idField]}">${sanitizeHTML(item[nameField])}</option>`;
+    });
+    return options;
+}
+
+function addAlertResetModal() {
+    $('#addAlertForm')[0].reset();
+    const assetsSelect = $('#add_alert_assets_select');
+    const iocsSelect = $('#add_alert_iocs_select');
+    if (assetsSelect.hasClass('select2-hidden-accessible')) {
+        assetsSelect.val(null).trigger('change');
+        assetsSelect.select2('destroy');
+    }
+    if (iocsSelect.hasClass('select2-hidden-accessible')) {
+        iocsSelect.val(null).trigger('change');
+        iocsSelect.select2('destroy');
+    }
+    assetsSelect.empty();
+    iocsSelect.empty();
+}
+
+function parseOptionalJson(inputValue, fieldLabel) {
+    const raw = (inputValue || '').trim();
+    if (!raw) return undefined;
+    try {
+        return JSON.parse(raw);
+    } catch (e) {
+        notify_error(`Invalid JSON in ${fieldLabel}`);
+        throw e;
+    }
+}
+
+async function initAddAlertModal() {
+    const [statusResp, severityResp, customerResp, classificationResp, ownerResp, resolutionResp, assetTypeResp, iocTypeResp, caseAssetsResp, caseIocsResp] =
+        await Promise.all([
+            get_request_api('/manage/alert-status/list'),
+            get_request_api('/manage/severities/list'),
+            get_request_api('/manage/customers/list'),
+            get_request_api('/manage/case-classifications/list'),
+            get_request_api('/manage/users/restricted/list'),
+            get_request_api('/manage/alert-resolutions/list'),
+            get_request_api('/manage/asset-type/list'),
+            get_request_api('/manage/ioc-types/list'),
+            get_request_api('/case/assets/list'),
+            get_request_api('/case/ioc/list')
+        ]);
+
+    if (!notify_auto_api(statusResp, true) || !notify_auto_api(severityResp, true) || !notify_auto_api(customerResp, true)
+        || !notify_auto_api(classificationResp, true) || !notify_auto_api(ownerResp, true) || !notify_auto_api(resolutionResp, true)
+        || !notify_auto_api(assetTypeResp, true) || !notify_auto_api(iocTypeResp, true)
+        || !notify_auto_api(caseAssetsResp, true) || !notify_auto_api(caseIocsResp, true)) {
+        return;
+    }
+
+    $('#add_alert_status_id').html(addAlertBuildSelectOptions(statusResp.data, 'status_id', 'status_name', false));
+    $('#add_alert_severity_id').html(addAlertBuildSelectOptions(severityResp.data, 'severity_id', 'severity_name', false));
+    $('#add_alert_customer_id').html(addAlertBuildSelectOptions(customerResp.data, 'customer_id', 'customer_name', false));
+    $('#add_alert_classification_id').html(addAlertBuildSelectOptions(classificationResp.data, 'id', 'name_expanded'));
+    $('#add_alert_owner_id').html(addAlertBuildSelectOptions(ownerResp.data, 'user_id', 'user_name'));
+    $('#add_alert_resolution_status_id').html(addAlertBuildSelectOptions(resolutionResp.data, 'resolution_status_id', 'resolution_status_name'));
+
+    addAlertAssetTypes = assetTypeResp.data || [];
+    addAlertIocTypes = iocTypeResp.data || [];
+    addAlertCaseAssets = (caseAssetsResp.data && caseAssetsResp.data.assets) ? caseAssetsResp.data.assets : [];
+    addAlertCaseIocs = (caseIocsResp.data && caseIocsResp.data.ioc) ? caseIocsResp.data.ioc : [];
+
+    const assetsSelect = $('#add_alert_assets_select');
+    const iocsSelect = $('#add_alert_iocs_select');
+
+    addAlertCaseAssets.forEach((asset) => {
+        const option = new Option(asset.asset_name, String(asset.asset_id), false, false);
+        $(option).attr('data-asset-name', asset.asset_name || '');
+        $(option).attr('data-asset-type-id', asset.asset_type_id || '');
+        assetsSelect.append(option);
+    });
+
+    addAlertCaseIocs.forEach((ioc) => {
+        const option = new Option(ioc.ioc_value, String(ioc.ioc_id), false, false);
+        $(option).attr('data-ioc-value', ioc.ioc_value || '');
+        $(option).attr('data-ioc-type-id', ioc.ioc_type_id || '');
+        iocsSelect.append(option);
+    });
+
+    assetsSelect.select2({
+        tags: true,
+        tokenSeparators: [','],
+        width: '100%',
+        placeholder: 'Select existing assets or type new ones'
+    });
+    iocsSelect.select2({
+        tags: true,
+        tokenSeparators: [','],
+        width: '100%',
+        placeholder: 'Select existing IOCs or type new ones'
+    });
+}
+
+async function submitAddAlert() {
+    let alertContext;
+    let sourceContent;
+    try {
+        alertContext = parseOptionalJson($('#add_alert_context').val(), 'Context');
+        sourceContent = parseOptionalJson($('#add_alert_source_content').val(), 'Source Content');
+    } catch (e) {
+        return;
+    }
+
+    const assets = [];
+    ($('#add_alert_assets_select').select2('data') || []).forEach((item) => {
+        const fromExisting = item.element ? $(item.element) : null;
+        const assetName = fromExisting ? (fromExisting.attr('data-asset-name') || item.text || '').trim() : (item.text || '').trim();
+        const assetTypeIdRaw = fromExisting ? fromExisting.attr('data-asset-type-id') : '';
+        const parsedTypeId = parseInt(assetTypeIdRaw, 10);
+        const defaultAssetTypeId = (typeof asset_data_template !== 'undefined' && asset_data_template.asset_type_id)
+            ? parseInt(asset_data_template.asset_type_id, 10)
+            : 1;
+        const assetTypeId = Number.isNaN(parsedTypeId) ? defaultAssetTypeId : parsedTypeId;
+        if (assetName && !Number.isNaN(assetTypeId)) {
+            assets.push({ asset_name: assetName, asset_type_id: assetTypeId });
+        }
+    });
+
+    const iocs = [];
+    ($('#add_alert_iocs_select').select2('data') || []).forEach((item) => {
+        const fromExisting = item.element ? $(item.element) : null;
+        const iocValue = fromExisting ? (fromExisting.attr('data-ioc-value') || item.text || '').trim() : (item.text || '').trim();
+        const iocTypeIdRaw = fromExisting ? fromExisting.attr('data-ioc-type-id') : '';
+        const parsedTypeId = parseInt(iocTypeIdRaw, 10);
+        if (iocValue) {
+            const iocPayload = { ioc_value: iocValue };
+            if (!Number.isNaN(parsedTypeId)) {
+                iocPayload.ioc_type_id = parsedTypeId;
+            }
+            iocs.push(iocPayload);
+        }
+    });
+
+    const eventTime = $('#add_alert_source_event_time').val();
+    const payload = {
+        alert_title: ($('#add_alert_title').val() || '').trim(),
+        alert_description: ($('#add_alert_description').val() || '').trim(),
+        alert_source: ($('#add_alert_source').val() || '').trim(),
+        alert_source_ref: ($('#add_alert_source_ref').val() || '').trim(),
+        alert_source_link: ($('#add_alert_source_link').val() || '').trim(),
+        alert_severity_id: parseInt($('#add_alert_severity_id').val(), 10),
+        alert_status_id: parseInt($('#add_alert_status_id').val(), 10),
+        alert_customer_id: parseInt($('#add_alert_customer_id').val(), 10),
+        alert_classification_id: $('#add_alert_classification_id').val() ? parseInt($('#add_alert_classification_id').val(), 10) : null,
+        alert_owner_id: $('#add_alert_owner_id').val() ? parseInt($('#add_alert_owner_id').val(), 10) : null,
+        alert_resolution_status_id: $('#add_alert_resolution_status_id').val() ? parseInt($('#add_alert_resolution_status_id').val(), 10) : null,
+        alert_source_event_time: eventTime ? new Date(eventTime).toISOString() : undefined,
+        alert_note: ($('#add_alert_note').val() || '').trim(),
+        alert_tags: ($('#add_alert_tags').val() || '').trim(),
+        alert_context: alertContext,
+        alert_source_content: sourceContent,
+        alert_assets: assets,
+        alert_iocs: iocs,
+        csrf_token: $('#csrf_token').val()
+    };
+
+    Object.keys(payload).forEach((key) => {
+        if (payload[key] === '' || payload[key] === undefined) {
+            delete payload[key];
+        }
+    });
+
+    const resp = await post_request_api('/alerts/add', JSON.stringify(payload));
+    if (!notify_auto_api(resp)) return;
+
+    $('#addAlertModal').modal('hide');
+    addAlertResetModal();
+    refreshAlerts();
+}
+
 $(document).ready(function () {
-    for (const [selectElementId, configItem] of Object.entries(selectsConfig)) {
-        $(`#${selectElementId}`).one('click', function () {
-          fetchSelectOptions(selectElementId, configItem)
-            .catch(error => console.error(error));
-        });
-      }
+        initializeFilterSelectPickers();
 
 
     editor = ace.edit('custom_conditions');
@@ -2209,8 +2437,8 @@ $(document).ready(function () {
     getAlertStatusList();
     getAlertResolutionList();
 
-    // Connect to socket.io alerts namespace
-    const socket = io.connect('/alerts');
+    // Connect to socket.io alerts namespace using shared socket manager
+    const socket = window.socketManager.getNamespace('/alerts');
 
   $('#toggle-selection-mode').on('click', function() {
     // Toggle the 'selection-mode' class on the body element
@@ -2245,6 +2473,16 @@ $(document).ready(function () {
         const currentCount = parseInt(badge.text()) || 0;
         badge.text(currentCount + 1).show();
         badge.attr('title', 'New alerts available');
+    });
+
+    $('#openAddAlertModalBtn').on('click', async function () {
+        addAlertResetModal();
+        await initAddAlertModal();
+        $('#addAlertModal').modal('show');
+    });
+
+    $('#submitAddAlertBtn').on('click', async function () {
+        await submitAddAlert();
     });
 
 });

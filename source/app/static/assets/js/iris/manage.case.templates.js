@@ -116,10 +116,16 @@ $('#case_templates_table').dataTable( {
                 }
             },
             {
-                "data": "description"
+                "data": "description",
+                "render": function ( data, type, row ) {
+                    return sanitizeHTML(data);
+                }
             },
             {
-                "data": "added_by"
+                "data": "added_by",
+                "render": function ( data, type, row ) {
+                    return sanitizeHTML(data);
+                }
             },
             {
                 "data": "created_at"

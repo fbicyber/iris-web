@@ -17,9 +17,10 @@
 						<div class="row mt-1">
 							<div class="col">
 								<div class="input-group">
+									<label for="search-input" class="sr-only">Search in notes</label>
 									<input type="text" placeholder="Search in notes" class="form-control" id="search-input">
 									  <div class="input-group-append">
-										<button class="btn btn-sm btn-light" type="button" id="clear-search">
+										<button class="btn btn-sm btn-light" type="button" id="clear-search" aria-label="Clear note search">
 										  &times;
 										</button>
 									  </div>
@@ -28,13 +29,13 @@
 						</div>
 						<div class="row mt-2">
 							<div class="col">
-								<button class="btn btn-light btn-sm" title="Add folder" onclick="add_folder();return false;">
+								<button class="btn btn-light btn-sm" title="Add folder" aria-label="Add folder" onclick="add_folder();return false;">
 									<i class="fa fa-folder-plus"></i>
 								</button>
-								<button class="btn btn-light btn-sm" title="Fold/unfold directories" onclick="toggleDirectories();return false;">
+								<button class="btn btn-light btn-sm" title="Fold/unfold directories" aria-label="Fold or unfold directories" onclick="toggleDirectories();return false;">
 									<i class="fa-solid fa-folder-tree"></i>
 								</button>
-								<button class="btn btn-light btn-sm" title="Refresh list" onclick="refresh_folders();return false;">
+								<button class="btn btn-light btn-sm" title="Refresh list" aria-label="Refresh notes list" onclick="refresh_folders();return false;">
 									<i class="fa fa-refresh"></i>
 								</button>
 							</div>
@@ -61,15 +62,15 @@
 							<h4 class="page-title mb-0" id="currentNoteTitle"></h4>
 							<small>
 								<i class="text-muted" id="currentNoteIDLabel"></i>
-								<i class="fa fa-cloud-upload-alt ml-2" title="Auto saving enabled"></i>
-								<a class="bg-transparent" onclick="load_note_revisions()"><i class="fa-solid fa-clock-rotate-left ml-2 mt-2" style="cursor: pointer;" title="Modifications history"></i></a>
+								<i class="fa fa-cloud-upload-alt ml-2" title="Auto saving enabled" aria-label="Auto saving enabled" role="img"></i>
+								<a class="bg-transparent" onclick="load_note_revisions()" aria-label="Open modifications history"><i class="fa-solid fa-clock-rotate-left ml-2 mt-2" style="cursor: pointer;" title="Modifications history"></i></a>
 							</small>
 
 						</div>
 						<div class="col">
 							<div class="row float-right">
-								<span class="float-right mr-2 mt-1" id="content_typing"></span>
-								<span class="float-right mr-2 mt-1" id="content_last_saved_by"></span>
+								<span class="float-right mr-2 mt-1" id="content_typing" aria-live="polite"></span>
+								<span class="float-right mr-2 mt-1" id="content_last_saved_by" aria-live="polite"></span>
 								<div class="avatar-group-note mt-1 mr-2 float-right" id="ppl_list_viewing">
 								</div>
 								  <button type="button" class="btn bg-transparent btn-xs" onclick="proxy_comment_element();" title="Comments">
@@ -77,31 +78,31 @@
 										<i class="fa-solid fa-comments mr-2"></i><span class="notification" id="object_comments_number"></span>
 									</span>
 								</button>
-								<button type="button" class="btn bg-transparent btn-xs" onclick="proxy_copy_object_link();return false;" title="Copy shared link">
+								<button type="button" class="btn bg-transparent btn-xs" onclick="proxy_copy_object_link();return false;" title="Copy shared link" aria-label="Copy shared link">
 									<span class="btn-label">
 										<i class="fa fa-share mr-2"></i>
 									</span>
 								</button>
-								<button type="button" class="btn bg-transparent btn-xs" onclick="proxy_copy_object_link_md();return false;" title="Copy MD link">
+								<button type="button" class="btn bg-transparent btn-xs" onclick="proxy_copy_object_link_md();return false;" title="Copy MD link" aria-label="Copy Markdown link">
 									<span class="btn-label">
 										<i class="fa-brands fa-markdown mr-2"></i>
 									</span>
 								</button>
-								<button type="button" class="btn bg-transparent btn-xs" onclick="download_note();return false;" title="Download as MD">
+								<button type="button" class="btn bg-transparent btn-xs" onclick="download_note();return false;" title="Download as MD" aria-label="Download note as Markdown">
 									<span class="btn-label">
 										<i class="fa-solid fa-download mr-2"></i>
 									</span>
 								</button>
-								<button type="button" class="btn bg-transparent btn-xs" onclick="delete_note();return false;" title="Delete note">
+								<button type="button" class="btn bg-transparent btn-xs" onclick="delete_note();return false;" title="Delete note" aria-label="Delete note">
 									<span class="btn-label">
 										<i class="fa-solid fa-trash mr-2 text-danger"></i>
 									</span>
 								</button>
 								<div class="dropdown">
-									  <button class="btn bg-transparent" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+									  <button class="btn bg-transparent" id="notes_actions_dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" aria-label="Open note actions menu">
 										  <span aria-hidden="true"><i class="fas fa-ellipsis-v"></i></span>
 									  </button>
-									  <div class="dropdown-menu pull-right" id="note_quick_actions" aria-labelledby="dropdownMenuButton">
+									  <div class="dropdown-menu pull-right" id="note_quick_actions" aria-labelledby="notes_actions_dropdown">
 									  </div>
 								 </div>
 						  	</div>
@@ -110,23 +111,23 @@
 					<div class="note-body">
 						<div class="row mb-1 mt-3 ml-2">
 							<div class="col-10" id="notes_edition_btn">
-									<div class="btn btn-sm btn-light mr-1 " title="CTRL-S" id="last_saved" onclick="save_note();"><i class="fa-solid fa-file-circle-check"></i></div>
-									<div class="btn btn-sm btn-light mr-1 " title="CTRL-B" onclick="note_editor.insertSnippet('**${1:$SELECTION}**');note_editor.focus();"><i class="fa-solid fa-bold"></i></div>
-									<div class="btn btn-sm btn-light mr-1" title="CTRL-I" onclick="note_editor.insertSnippet('*${1:$SELECTION}*');note_editor.focus();"><i class="fa-solid fa-italic"></i></div>
-									<div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-1" onclick="note_editor.insertSnippet('# ${1:$SELECTION}');note_editor.focus();">H1</div>
-									<div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-2" onclick="note_editor.insertSnippet('## ${1:$SELECTION}');note_editor.focus();">H2</div>
-									<div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-3" onclick="note_editor.insertSnippet('### ${1:$SELECTION}');note_editor.focus();">H3</div>
-									<div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-4" onclick="note_editor.insertSnippet('#### ${1:$SELECTION}');note_editor.focus();">H4</div>
-									<div class="btn btn-sm btn-light mr-1" title="CTRL+\`" onclick="note_editor.insertSnippet('```${1:$SELECTION}```');note_editor.focus();"><i class="fa-solid fa-code"></i></div>
-									<div class="btn btn-sm btn-light mr-1" title="CTRL-K" onclick="note_editor.insertSnippet('[${1:$SELECTION}](url)');note_editor.focus();"><i class="fa-solid fa-link"></i></div>
-									<div class="btn btn-sm btn-light mr-1" title="Insert table" onclick="note_editor.insertSnippet('|\t|\t|\t|\n|--|--|--|\n|\t|\t|\t|\n|\t|\t|\t|');note_editor.focus();"><i class="fa-solid fa-table"></i></div>
-									<div class="btn btn-sm btn-light mr-1" title="Insert bullet list" onclick="note_editor.insertSnippet('\n- \n- \n- ');note_editor.focus();"><i class="fa-solid fa-list"></i></div>
-									<div class="btn btn-sm btn-light mr-1" title="Insert numbered list" onclick="note_editor.insertSnippet('\n1. a  \n2. b  \n3. c  ');note_editor.focus();"><i class="fa-solid fa-list-ol"></i></div>
-									<div class="btn btn-sm btn-light mr-1" title="Toggle editor expansion" onclick="toggle_max_editor();" id="btn_max_editor"><i class="fa-solid fa-maximize"></i></div>
-									<div class="btn btn-sm btn-transparent mr-1" title="Help" onclick="get_md_helper_modal();"><i class="fa-solid fa-question-circle"></i></div>
+									<div class="btn btn-sm btn-light mr-1 " title="CTRL-S" id="last_saved" role="button" tabindex="0" aria-label="Save note" aria-live="polite" onclick="save_note();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); save_note(); }"><i class="fa-solid fa-file-circle-check"></i></div>
+									<div class="btn btn-sm btn-light mr-1 " title="CTRL-B" role="button" tabindex="0" aria-label="Bold" onclick="note_editor.insertSnippet('**${1:$SELECTION}**');note_editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); note_editor.insertSnippet('**${1:$SELECTION}**');note_editor.focus(); }"><i class="fa-solid fa-bold"></i></div>
+									<div class="btn btn-sm btn-light mr-1" title="CTRL-I" role="button" tabindex="0" aria-label="Italic" onclick="note_editor.insertSnippet('*${1:$SELECTION}*');note_editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); note_editor.insertSnippet('*${1:$SELECTION}*');note_editor.focus(); }"><i class="fa-solid fa-italic"></i></div>
+									<div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-1" role="button" tabindex="0" aria-label="Insert heading level 1" onclick="note_editor.insertSnippet('# ${1:$SELECTION}');note_editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); note_editor.insertSnippet('# ${1:$SELECTION}');note_editor.focus(); }">H1</div>
+									<div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-2" role="button" tabindex="0" aria-label="Insert heading level 2" onclick="note_editor.insertSnippet('## ${1:$SELECTION}');note_editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); note_editor.insertSnippet('## ${1:$SELECTION}');note_editor.focus(); }">H2</div>
+									<div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-3" role="button" tabindex="0" aria-label="Insert heading level 3" onclick="note_editor.insertSnippet('### ${1:$SELECTION}');note_editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); note_editor.insertSnippet('### ${1:$SELECTION}');note_editor.focus(); }">H3</div>
+									<div class="btn btn-sm btn-light mr-1" title="CTRL-SHIFT-4" role="button" tabindex="0" aria-label="Insert heading level 4" onclick="note_editor.insertSnippet('#### ${1:$SELECTION}');note_editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); note_editor.insertSnippet('#### ${1:$SELECTION}');note_editor.focus(); }">H4</div>
+									<div class="btn btn-sm btn-light mr-1" title="CTRL+\`" role="button" tabindex="0" aria-label="Insert code block" onclick="note_editor.insertSnippet('```${1:$SELECTION}```');note_editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); note_editor.insertSnippet('```${1:$SELECTION}```');note_editor.focus(); }"><i class="fa-solid fa-code"></i></div>
+									<div class="btn btn-sm btn-light mr-1" title="CTRL-K" role="button" tabindex="0" aria-label="Insert link" onclick="note_editor.insertSnippet('[${1:$SELECTION}](url)');note_editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); note_editor.insertSnippet('[${1:$SELECTION}](url)');note_editor.focus(); }"><i class="fa-solid fa-link"></i></div>
+									<div class="btn btn-sm btn-light mr-1" title="Insert table" role="button" tabindex="0" aria-label="Insert table" onclick="note_editor.insertSnippet('|\t|\t|\t|\n|--|--|--|\n|\t|\t|\t|\n|\t|\t|\t|');note_editor.focus();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); note_editor.insertSnippet('|\t|\t|\t|\n|--|--|--|\n|\t|\t|\t|\n|\t|\t|\t|');note_editor.focus(); }"><i class="fa-solid fa-table"></i></div>
+									<div class="btn btn-sm btn-light mr-1" title="Insert bullet list" role="button" tabindex="0" aria-label="Insert bullet list" onclick="insert_list_in_editor(note_editor, 'bullet');" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); insert_list_in_editor(note_editor, 'bullet'); }"><i class="fa-solid fa-list"></i></div>
+									<div class="btn btn-sm btn-light mr-1" title="Insert numbered list" role="button" tabindex="0" aria-label="Insert numbered list" onclick="insert_list_in_editor(note_editor, 'numbered');" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); insert_list_in_editor(note_editor, 'numbered'); }"><i class="fa-solid fa-list-ol"></i></div>
+									<div class="btn btn-sm btn-light mr-1" title="Toggle editor expansion" id="btn_max_editor" role="button" tabindex="0" aria-label="Toggle editor expansion" onclick="toggle_max_editor();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle_max_editor(); }"><i class="fa-solid fa-maximize"></i></div>
+									<div class="btn btn-sm btn-transparent mr-1" title="Help" role="button" tabindex="0" aria-label="Open Markdown help" onclick="get_md_helper_modal();" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); get_md_helper_modal(); }"><i class="fa-solid fa-question-circle"></i></div>
 							</div>
 							<div class="col">
-								<button type="button" class="float-right icon-note btn btn-light btn-circle btn-sm mr-2" onclick="edit_innote();"></button>
+								<button type="button" class="float-right icon-note btn btn-light btn-circle btn-sm mr-2" onclick="edit_innote();" aria-label="Edit note"></button>
 								<button type="button" class="float-right btn btn-light btn-sm mr-2" onclick="save_note();return false;" title="Save note">
 									<span class="btn-label">
 										<i class="fa fa-save mr-2"></i>Save note
@@ -137,7 +138,7 @@
 						<div class="row" id="noteContentScroll">
 							<div class="col-md-12 col-lg-6" id="container_note_content">
 								<div style="display: none" id="fetched_crc"></div>
-								<div id="editor_detail" contenteditable="true" spellcheck="true" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}"></div>
+								<div id="editor_detail" contenteditable="true" spellcheck="true" role="textbox" aria-label="Note content editor" aria-multiline="true" data-theme="{% if current_user.in_dark_mode %}dark{% else %}light{% endif %}"></div>
 								<textarea id="note_content" rows="10" cols="82" style="display: none"></textarea>
 							</div>
 							<div class="col-md-12 col-lg-6" id="ctrd_notesum">
@@ -175,11 +176,11 @@
 		</div>
 	</div>
 
-	<div class="modal" id="noteModificationHistoryModal" tabindex="-1" role="dialog" aria-labelledby="moveFolderModalLabel" aria-hidden="true">
+	<div class="modal" id="noteModificationHistoryModal" tabindex="-1" role="dialog" aria-labelledby="noteModificationHistoryModalLabel" aria-hidden="true">
 		<div class="modal-dialog modal-lg" role="document">
 			<div class="modal-content">
 				<div class="modal-header">
-					<h5 class="modal-title" >Note revisions</h5>
+					<h5 class="modal-title" id="noteModificationHistoryModalLabel">Note revisions</h5>
 					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
 						<span aria-hidden="true">&times;</span>
 					</button>
@@ -196,11 +197,11 @@
 		</div>
 	</div>
 
-	<div class="modal bg-dark-gradient" id="notePreviewModal" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal bg-dark-gradient" id="notePreviewModal" tabindex="-1" role="dialog" aria-labelledby="notePreviewModalLabel" aria-hidden="true">
 		<div class="modal-dialog modal-xxl " role="document">
 			<div class="modal-content">
 				<div class="modal-header">
-					<h5 class="modal-title" >Preview of revision <span id="previewRevisionID"></span></h5>
+					<h5 class="modal-title" id="notePreviewModalLabel">Preview of revision <span id="previewRevisionID"></span></h5>
 					<button type="button" class="close" data-dismiss="modal" aria-label="Close">
 						<span aria-hidden="true">&times;</span>
 					</button>
@@ -232,6 +233,7 @@
 {% include 'includes/footer_case.html' %}
 <script src="/static/assets/js/plugin/sortable/sortable.js "></script>
 <script src="/static/assets/js/core/socket.io.js"></script>
+<script src="/static/assets/js/iris/socket.manager.js"></script>
 <script src="/static/assets/js/iris/case.notes.js "></script>
 
 

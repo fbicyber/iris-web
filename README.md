@@ -6,7 +6,7 @@
 <p align="center">
   Incident Response Investigation System
   <br>
-  <i>Current Version v2.4.20</i>
+  <i>Current Version v2.5.3</i>
   <br>
   This is a fork by FBI Cyber, where several features are customized for the FBI's power users. Most notable changes are in the Timeline feature. 
 
@@ -16,7 +16,7 @@
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](./LICENSE.txt)   
 Iris is a web collaborative platform aiming to help incident responders sharing technical details during investigations.  
-The codebase is up-to-date with the official release tag of Iris v2.4.20, with the addition of FBI Cyber's customizations. The codebase is currently aligned with the official releases of DFIR-Iris only.
+The codebase is up-to-date with the official release tag of Iris v2.4.27, with the addition of FBI Cyber's customizations. The codebase is currently aligned with the official releases of DFIR-Iris only.
 
 
 ## Differences between FBI Cyber's Iris and DFIR-Iris
@@ -63,6 +63,35 @@ docker compose up -d
 
 Verify that Iris UI is accessible at `https://<your_instance_ip>/login`. Log in with username from `IRIS_ADM_USERNAME` and password from `IRIS_ADM_PASSWORD`.
 
+## Installation from Archive
+If you have received the Iris source code as a `.tar.gz` archive, follow these steps:
+
+1. Extract the archive:
+   ```bash
+   tar -xzf iris.tar.gz
+   cd iris
+   ```
+2. Configure the environment:
+   ```bash
+   cp .env.model .env
+   ```
+   Edit the `.env` file and update the following variables:
+   - `POSTGRES_PASSWORD`
+   - `POSTGRES_ADMIN_PASSWORD`
+   - `IRIS_ADM_PASSWORD`
+   - `IRIS_ADM_EMAIL`
+   - `IRIS_ADM_USERNAME`
+
+   ****Reminder, please no "@" in any of the PASSWORD fields in .env 
+
+
+3. Build and start the containers:
+   ```bash
+   docker compose -f docker-compose.dev.yml build
+   docker compose -f docker-compose.dev.yml up -d
+   ```
+
+Verify that Iris UI is accessible at `https://<your_instance_ip>/login`. Log in with username from `IRIS_ADM_USERNAME` and password from `IRIS_ADM_PASSWORD`.
 
 ## DFIR-Iris
 To view the official Iris documentation for the upstream version, visit this GitHub [site](https://github.com/dfir-iris/iris-web).

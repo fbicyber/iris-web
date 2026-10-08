@@ -22,7 +22,8 @@ from flask_login import current_user
 from sqlalchemy import and_
 from sqlalchemy import func
 
-from app import db, app
+from app.extensions import db
+from flask import current_app as app
 from app.datamgmt.states import update_assets_state
 from app.models import AnalysisStatus, CaseStatus
 from app.models import AssetComments
@@ -330,13 +331,18 @@ def get_linked_iocs_finfo_from_asset(asset_id):
     return iocs
 
 
-def get_case_asset_comments(asset_id):
+def get_case_asset_comments(asset_id, caseid):
     return Comments.query.filter(
         AssetComments.comment_asset_id == asset_id
     ).with_entities(
         Comments
     ).join(AssetComments,
            Comments.comment_id == AssetComments.comment_id
+    ).join(
+        CaseAssets,
+        CaseAssets.asset_id == AssetComments.comment_asset_id
+    ).filter(
+        CaseAssets.case_id == caseid
     ).order_by(
         Comments.comment_date.asc()
     ).all()
@@ -363,7 +369,7 @@ def get_case_assets_comments_count(asset_id):
     ).all()
 
 
-def get_case_asset_comment(asset_id, comment_id):
+def get_case_asset_comment(asset_id, comment_id, caseid):
     return AssetComments.query.filter(
         AssetComments.comment_asset_id == asset_id,
         AssetComments.comment_id == comment_id
@@ -379,6 +385,11 @@ def get_case_asset_comment(asset_id, comment_id):
         AssetComments.comment
     ).join(
         Comments.user
+    ).join(
+        CaseAssets,
+        CaseAssets.asset_id == AssetComments.comment_asset_id
+    ).filter(
+        CaseAssets.case_id == caseid
     ).first()
 
 

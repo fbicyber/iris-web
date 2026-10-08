@@ -29,7 +29,7 @@ from flask import request
 from flask import url_for
 from flask_login import current_user
 
-from app import db
+from app.extensions import db
 from app.blueprints.case.case_comments import case_comment_update
 from app.datamgmt.case.case_assets_db import get_assets_types
 from app.datamgmt.case.case_db import get_case
@@ -236,6 +236,7 @@ def case_upload_ioc(caseid):
 def case_add_ioc_modal(caseid):
 
     form = ModalAddCaseIOCForm()
+    form.ioc_in_graph.data = True
     form.ioc_type_id.choices = [(row['type_id'], row['type_name']) for row in get_ioc_types_list()]
     form.ioc_tlp_id.choices = get_tlps()
 
@@ -274,6 +275,7 @@ def case_view_ioc_modal(cur_id, caseid, url_redir):
     form.ioc_tags.render_kw = {'value': ioc.ioc_tags}
     form.ioc_description.data = ioc.ioc_description
     form.ioc_value.data = ioc.ioc_value
+    form.ioc_in_graph.data = ioc.ioc_in_graph
     comments_map = get_case_iocs_comments_count([cur_id])
 
     return render_template("modal_add_case_ioc.html", form=form, ioc=ioc, attributes=ioc.custom_attributes,
@@ -321,7 +323,7 @@ def case_comment_ioc_modal(cur_id, caseid, url_redir):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_ioc_list(cur_id, caseid):
 
-    ioc_comments = get_case_ioc_comments(cur_id)
+    ioc_comments = get_case_ioc_comments(cur_id, caseid)
     if ioc_comments is None:
         return response_error('Invalid ioc ID')
 
@@ -368,7 +370,7 @@ def case_comment_ioc_add(cur_id, caseid):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_ioc_get(cur_id, com_id, caseid):
 
-    comment = get_case_ioc_comment(cur_id, com_id)
+    comment = get_case_ioc_comment(cur_id, com_id, caseid)
     if not comment:
         return response_error("Invalid comment ID")
 

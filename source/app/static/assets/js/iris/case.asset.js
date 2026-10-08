@@ -49,7 +49,10 @@ function validate_ip_address(ipaddress, id=null, message_label=null) {
     }
     else {
         for (index in ip_list){
-            if (/^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ip_list[index])) {  
+            if (validate_IPv4(ip_list[index])){
+                valid = true;
+            }
+            else if (validate_IPv6(ip_list[index])) {
                 valid = true;
             }
             else {
@@ -64,6 +67,52 @@ function validate_ip_address(ipaddress, id=null, message_label=null) {
         } 
         return valid;  
     }
+}
+
+function validate_IPv4(ipaddress) {
+    /**
+     * Given string of ip address, check for IPv4 format
+     * _ipaddress: the input IP address
+     * Return: true if empty or valid IP address, false otherwise
+     */
+    const ipv4Pattern = new RegExp(
+        '^(' +
+            '(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.' +  
+            '(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.' + 
+            '(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.' +  
+            '(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)' +    
+        ')$'
+    );
+    return ipv4Pattern.test(ipaddress);
+}
+
+function validate_IPv6(ipaddress) {
+    /**
+     * Given string of ip address, check for IPv6 format
+     * _ipaddress: the input IP address
+     * Return: true if empty or valid IP address, false otherwise
+     */
+    const ipv6Pattern = new RegExp(
+      '^(' +
+        '(([0-9a-fA-F]{1,4}:){7}([0-9a-fA-F]{1,4}|:))|' + // full form
+        '(([0-9a-fA-F]{1,4}:){1,7}:)|' +                  // leading :: (compressed form)
+        '(([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4})|' +  // compressed with one group
+        '(([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2})|' + // compressed with two groups
+        '(([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3})|' + // compressed with three groups
+        '(([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4})|' + // compressed with four groups
+        '(([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5})|' + // compressed with five groups
+        '([0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6}))|' +      // compressed with six groups
+        '(:((:[0-9a-fA-F]{1,4}){1,7}|:))|' +                    // leading or standalone ::
+        '(fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,})|' +    // link-local addresses with zone index
+        '(::(ffff(:0{1,4}){0,1}:){0,1}' +
+        '((25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\\.){3}' +
+        '(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?))|' +           // IPv4-mapped IPv6 addresses
+        '(([0-9a-fA-F]{1,4}:){1,4}:' +
+        '((25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\\.){3}' +
+        '(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?))' +            // IPv4-embedded IPv6 addresses
+      ')$'
+    );
+    return ipv6Pattern.test(ipaddress);
 }
 
 /* Fetch a modal that is compatible with the requested asset type */
@@ -222,22 +271,34 @@ function get_case_assets() {
 }
 
 /* Delete an asset */
-function delete_asset(asset_id) {
-    do_deletion_prompt("You are about to delete asset #" + asset_id)
-    .then((doDelete) => {
-        if (doDelete) {
-            post_request_api('assets/delete/' + asset_id)
-            .done((data) => {
-                if (data.status == 'success') {
-                    reload_assets();
-                    $('#modal_add_asset').modal('hide');
-                    notify_success('Asset deleted');
-                } else {
-                    swal("Oh no !", data.message, "error")
-                }
-            });
-        }
-    });
+function delete_asset(asset_id = null, skip_prompt = false) {
+    var asset_id_set = new Set();
+
+    if (asset_id !== undefined && asset_id !== null && asset_id !== '') {
+        asset_id_set.add(asset_id.toString());
+    } else {
+        var table_selected_rows = Table.rows('.selected').data();
+        asset_id_set = get_selected_rows_item_ids(table_selected_rows, "asset");
+    }
+
+    asset_id_set.forEach(asset_id => {
+        window.location.hash = asset_id;
+        (skip_prompt ? Promise.resolve(true) : do_deletion_prompt("You are about to delete asset #" + asset_id))
+        .then((doDelete) => {
+            if (doDelete) {
+                post_request_api('assets/delete/' + asset_id)
+                .done((data) => {
+                    if (data.status == 'success') {
+                        reload_assets();
+                        $('#modal_add_asset').modal('hide');
+                        notify_success('Asset deleted');
+                    } else {
+                        swal("Oh no !", data.message, "error")
+                    }
+                });
+            }
+        });
+    })
 }
 
 /* Fetch the details of an asset and allow modification */
@@ -425,6 +486,7 @@ $(document).ready(function(){
     Table = $("#assets_table").DataTable({
         dom: '<"container-fluid"<"row"<"col"l><"col"f>>>rt<"container-fluid"<"row"<"col"i><"col"p>>>',
         aaData: [],
+        stateSave: true,
         aoColumns: [
           {
             "data": "asset_name",
@@ -481,7 +543,8 @@ $(document).ready(function(){
                         row.alerts.forEach(alert => {
                             alerts_content += `<i tabindex="0" class="fas fa-bell text-warning mr-2"></i><a href=\"/alerts?alert_ids=${alert.alert_id}&page=1&per_page=1&sort=desc\" target="_blank" rel="noopener">#${alert.alert_id} - ${alert.alert_title.replace(/'/g, "&#39;").replace(/"/g, "&quot;")}</a><br/>`;
                         }  );
-                        alerts_content += `<i tabindex="0" class="fas fa-external-link-square mr-2"></i><a href=\"/alerts?alert_assets=${data}" target="_blank" rel="noopener">More..</a>`;
+                        const safeAssetName = encodeURIComponent(data);
+                        alerts_content += `<i tabindex="0" class="fas fa-external-link-square mr-2"></i><a href=\"/alerts?alert_assets=${safeAssetName}" target="_blank" rel="noopener">More..</a>`;
 
 
                         compro += `<i tabindex="0" class="fas fa-bell text-warning ml-2" style="cursor: pointer;" data-html="true" data-toggle="popover" data-trigger="focus" title="Alerts" data-content='${alerts_content}'></i>`;
@@ -626,6 +689,7 @@ $(document).ready(function(){
             "processing": '<i class="fa fa-spinner fa-spin" style="font-size:24px;color:rgb(75, 183, 245);"></i>'
         },
         retrieve: true,
+        pageLength: 100,
         buttons: [],
         orderCellsTop: true,
         initComplete: function () {
@@ -640,17 +704,34 @@ $(document).ready(function(){
             hide_table_search_input( columns );
     });
 
-    // apply search 
-    $('#datatable_search_bar').keyup(function(){
-        Table.search($(this).val()).draw() ;
-    })
+    // apply search
+    $('input#datatable_search_bar').keyup(function(){
+        Table.search($(this).val()).draw();
+    });
 
-    // prevent redirect to case #1 by default 
-    $('#datatable_search_bar').on("keypress", function(e){
+    // prevent redirect to case #1 by default
+    $('input#datatable_search_bar').on("keypress", function(e){
         if (e.which == 13) {
             e.preventDefault();
         }
-    })
+    });
+
+    function clearGlobalSearchIfSearchBarEmpty() {
+        let searchBarValue = $('input#datatable_search_bar').first().val();
+        if (searchBarValue === undefined) {
+            return;
+        }
+
+        if (searchBarValue.trim() === '' && Table.search() !== '') {
+            Table.search('').draw();
+            Table.state.save();
+        }
+    }
+
+    clearGlobalSearchIfSearchBarEmpty();
+    $(window).on('pageshow.caseAssetsSearchReset', function() {
+        clearGlobalSearchIfSearchBarEmpty();
+    });
 
     var buttons = new $.fn.dataTable.Buttons(Table, {
      buttons: [

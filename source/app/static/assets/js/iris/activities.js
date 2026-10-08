@@ -49,6 +49,7 @@ Table = $("#activities_table").DataTable({
     info: true,
     processing: true,
     retrieve: true,
+    pageLength: 100,
     initComplete: function () {
         tableFiltering(this.api(), 'activities_table');
     },

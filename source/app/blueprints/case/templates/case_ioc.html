@@ -21,6 +21,7 @@
 					<div class="row ml-1 my-2 w-100">
                         <div class="col-md-5">
                             <form class="form">
+                                <label for="datatable_search_bar" class="sr-only">Search IOCs</label>
                                 <input type="text" id="datatable_search_bar" class="form-control form-control-custom-search" placeholder="Search">
                             </form>
                         </div>
@@ -30,7 +31,7 @@
                     </div>
 					<ul class="navbar-nav topbar-nav ml-md-auto align-items-center page-navigation page-navigation-style-2 page-navigation-secondary">
                         <li class="nav-item ml-2">
-                            <span class="text-white text-sm mr-2" id="last_resfresh">Loading</span>
+                            <span class="text-white text-sm mr-2" id="last_resfresh" role="status" aria-live="polite">Loading</span>
                         </li>
                         <li class="nav-item">
                             <button class="btn btn-primary btn-sm" onclick="reload_iocs();">
@@ -44,10 +45,10 @@
                         </li>
                         <li class="nav-item">
                             <div class="dropdown">
-                              <button class="btn btn-sm btn-border btn-black" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                              <button class="btn btn-sm btn-border btn-black" id="ioc_actions_dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Open IOC actions menu">
                                   <span class="menu-title"><i class="fas fa-ellipsis-v"></i></span>
                               </button>
-                              <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                              <div class="dropdown-menu" aria-labelledby="ioc_actions_dropdown">
                                 <a class="dropdown-item" href="#" onclick="fire_upload_iocs();">Upload CSV of IOCs</a>
                               </div>
                             </div>
@@ -60,7 +61,7 @@
 
         <div class="page-inner">
             <div class="row">
-                <div class="loader1 text-center ml-mr-auto" id="loading_msg">Loading...</div>
+                <div class="loader1 text-center ml-mr-auto" id="loading_msg" role="status" aria-live="polite">Loading...</div>
                 <div class="col-md-12">
                     <div class="card" id="card_main_load" style="display:none;">
                         <div class="card-body">
@@ -98,7 +99,7 @@
 
     {% include 'includes/footer.html' %}
 </div>
-<div class="modal" tabindex="-1" role="dialog" id="modal_add_ioc" data-backdrop="true">
+<div class="modal" tabindex="-1" role="dialog" aria-label="Add or edit IOC" id="modal_add_ioc" data-backdrop="true">
     <div class="modal-xl modal-dialog" role="document">
         <div class="modal-content" id="modal_add_ioc_content">
 
@@ -108,13 +109,13 @@
     <!-- /.modal-dialog -->
 </div>
 
-<div class="modal " tabindex="-1" role="dialog" id="modal_upload_ioc" data-backdrop="true">
+<div class="modal " tabindex="-1" role="dialog" aria-labelledby="modal_upload_ioc_title" id="modal_upload_ioc" data-backdrop="true">
   <div class="modal-lg modal-dialog" role="document">
     <form method="post" action="" id="form_upload_ioc">
 
       <div class="modal-content">
         <div class="modal-header">
-          <h5>Upload IOC list (CSV format)</h5>
+          <h5 id="modal_upload_ioc_title">Upload IOC list (CSV format)</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
               aria-hidden="true">&times;</span></button>
         </div>
@@ -122,21 +123,21 @@
         <div class="modal-body">
             <div class="form-group">
                 <label for="ioc_format" class="placeholder">Expected CSV File format</label>
-                <textarea class="form-control col-md-12 col-sm-12 sizable-textarea" rows="2" disabled>ioc_value,ioc_type,ioc_description,ioc_tags,ioc_tlp
+                <textarea id="ioc_format" class="form-control col-md-12 col-sm-12 sizable-textarea" rows="2" disabled>ioc_value,ioc_type,ioc_description,ioc_tags,ioc_tlp
 &lt;Value&gt;,&lt;Type&gt;,&lt;Description&gt;,&lt;TLP&gt;,Tags separated with &quot;|&quot;</textarea>
             </div>
             <div class="form-group">
-                <label class="placeholder">CSV File format example</label>
-                <textarea class="form-control col-md-12 col-sm-12 sizable-textarea" rows="3" disabled>ioc_value,ioc_type,ioc_description,ioc_tags,ioc_tlp
+                <label for="ioc_format_example" class="placeholder">CSV File format example</label>
+                <textarea id="ioc_format_example" class="form-control col-md-12 col-sm-12 sizable-textarea" rows="3" disabled>ioc_value,ioc_type,ioc_description,ioc_tags,ioc_tlp
 1.1.1.1,IP,Cloudfare DNS IP address,Cloudfare|DNS,green
 wannacry.exe,File,Wannacry sample found,Wannacry|Malware|PE,amber</textarea>
             </div>
               <div class="form-group">
-                  <label class="placeholder">Choose CSV file to import : </label>
+                  <label for="input_upload_ioc" class="placeholder">Choose CSV file to import : </label>
                   <input id="input_upload_ioc" type="file" accept="text/csv">
               </div>
         </div>
-        <div class='invalid-feedback' id='ioc-invalid-msg'></div>
+        <div class='invalid-feedback' id='ioc-invalid-msg' role="alert" aria-live="assertive"></div>
         <div class="modal-footer">
                 <button type="button" class="btn btn-outline-dark mr-auto" onclick="generate_sample_csv();">Download sample CSV</button>
                 <button type="button" class="btn btn-outline-success" onclick="upload_ioc();">Upload</button>

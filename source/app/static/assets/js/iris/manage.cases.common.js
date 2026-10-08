@@ -228,7 +228,17 @@ function get_access_level_options(data) {
     return options;
 }
 
-function update_user_case_access_level(user_id, case_id, access_level) {
+function get_access_level_name(data) {
+    for (var i = 0; i < access_levels.length; i++) {
+        if (data == access_levels[i].id) {
+            return access_levels[i].name;
+        }
+    }
+
+    return '';
+}
+
+function update_user_case_access_level(user_id, case_id, access_level, select_element) {
     var data = {
         "case_id": parseInt(case_id),
         "user_id": parseInt(user_id),
@@ -239,6 +249,13 @@ function update_user_case_access_level(user_id, case_id, access_level) {
     post_request_api('/case/access/set-user', JSON.stringify(data), false, null, case_id)
     .done((data) => {
         notify_auto_api(data);
+        if (select_element !== undefined) {
+            var table = $('#case_access_users_list_table').DataTable();
+            var row = table.row($(select_element).closest('tr'));
+            var row_data = row.data();
+            row_data.user_access_level = parseInt(access_level);
+            row.data(row_data).invalidate();
+        }
     });
 }
 
@@ -322,7 +339,13 @@ function access_case_info_reload(case_id, owner_id, reviewer_id) {
                         "data": "user_access_level",
                         "className": "dt-center",
                         "render": function ( data, type, row ) {
-                            return `<select class="form-control" onchange="update_user_case_access_level('${row.user_id}',${case_id},this.value)">${get_access_level_options(data)}</select>`;
+                            if (type === 'display') {
+                                return `<select class="form-control" onchange="update_user_case_access_level('${row.user_id}',${case_id},this.value,this)">${get_access_level_options(data)}</select>`;
+                            }
+                            if (type === 'filter') {
+                                return get_access_level_name(data);
+                            }
+                            return parseInt(data);
                         }
                     }
                     ],

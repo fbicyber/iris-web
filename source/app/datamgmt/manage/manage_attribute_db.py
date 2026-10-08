@@ -19,7 +19,8 @@ import json
 import logging as logger
 from sqlalchemy.orm.attributes import flag_modified
 
-from app import db, app
+from app.extensions import db
+from flask import current_app as app
 from app.models import CaseAssets
 from app.models import CaseReceivedFile
 from app.models import CaseTasks

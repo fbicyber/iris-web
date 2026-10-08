@@ -96,6 +96,15 @@
     ],
     "note_directories": [
         {
+            "title": "Report Narrative",
+            "notes": [
+                {
+                    "title": "Report Narrative",
+                    "content": "# Reports"
+                }
+            ]
+        },
+        {
             "title": "Identify",
             "notes": [
                 {
@@ -130,7 +139,7 @@
                     <div class="form-group">
                         <div class="row">
                             <label for="editor_detail" class="mr-4">Case template definition
-                            </label><button type="button" class="btn btn-sm ml-auto" onclick="downloadCaseTemplateDefinition();">Download definition</button>
+                            </label><button type="button" class="btn btn-sm ml-auto" onclick="downloadCaseTemplateDefinition();" aria-label="Download template definition">Download definition</button>
                         </div>
                         <div id="editor_detail">{{ form.case_template_json.data|tojsonsafe }}</div>
                     </div>
@@ -151,6 +160,7 @@
             type="button"
             class="btn btn-outline-danger mr-auto"
              id="submit_delete_case_template"
+             aria-label="Delete case template"
     >
         Delete
     </button>
@@ -158,6 +168,7 @@
             type="button"
             class="btn btn-outline-success ml-4 float-right"
             id="submit_new_case_template"
+            aria-label="Update case template"
     >
         Update
     </button>
@@ -168,6 +179,7 @@
             type="button"
             class="btn btn-outline-success ml-4 float-right"
             id="submit_new_case_template"
+            aria-label="Save case template"
     >
         Save
     </button>

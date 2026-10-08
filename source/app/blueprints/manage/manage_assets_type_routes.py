@@ -26,8 +26,8 @@ from flask import render_template
 from flask import request
 from flask import url_for
 
-from app import app
-from app import db
+from flask import current_app as app
+from app.extensions import db
 from app.datamgmt.manage.manage_case_objs import search_asset_type_by_name
 from app.forms import AddAssetForm
 from app.iris_engine.utils.tracker import track_activity

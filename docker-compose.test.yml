@@ -1,0 +1,89 @@
+#  IRIS Source Code
+#  contact@dfir-iris.org
+#
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU Lesser General Public
+#  License as published by the Free Software Foundation; either
+#  version 3 of the License, or (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#  Lesser General Public License for more details.
+#
+#  You should have received a copy of the GNU Lesser General Public License
+#  along with this program; if not, write to the Free Software Foundation,
+#  Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+services:
+  testrabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: iriswebapp_rabbitmq_test
+    networks:
+      - iris_backend_test
+
+  # ephemeral object storage for tests
+  testfs:
+    image: rustfs/rustfs:latest
+    container_name: iriswebapp_fs_test
+    ports:
+      - "127.0.0.1:9009:9000"
+      - "127.0.0.1:9010:9001"
+    hostname: testfs
+    networks:
+      - iris_backend_test
+    environment:
+      - RUSTFS_SECRET_KEY
+      - RUSTFS_ACCESS_KEY
+
+  # ephemeral database for tests
+  testdb:
+    container_name: iriswebapp_db_test
+    build:
+      context: docker/db
+    image: iriswebapp_db:v2.4.20
+    env_file:
+      - .env.test
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_ADMIN_USER=raptor
+      - POSTGRES_ADMIN_PASSWORD=admin
+      - POSTGRES_DB=iris_db
+    ports:
+      - "127.0.0.1:5433:5433"
+    command: ["postgres", "-p", "5433"]
+    networks:
+      - iris_backend_test
+
+  testapp:
+    container_name: iriswebapp_app_test
+    build:
+      context: .
+      dockerfile: docker/webAppTest/Dockerfile
+    image: iriswebapp_app_test:v2.4.20
+    volumes:
+      - ./certificates/rootCA/irisRootCACert.pem:/etc/irisRootCACert.pem:ro
+      - ./certificates/:/home/iris/certificates/:ro
+      - ./certificates/ldap/:/iriswebapp/certificates/ldap/:ro
+      - ./iris-downloads:/home/iris/downloads
+      - ./user_templates:/home/iris/user_templates
+      - ./server_data:/home/iris/server_data
+      - ./source/app/:/iriswebapp/app/
+      - ./source/coverage:/iriswebapp/coverage
+    depends_on:
+      - "testrabbitmq"
+      - "testdb"
+      - "testfs"
+    env_file:
+      - .env.test
+    networks:
+      - iris_backend_test
+      - iris_frontend_test
+
+
+networks:
+  iris_backend_test:
+    name: iris_backend_test
+  iris_frontend_test:
+    name: iris_frontend_test

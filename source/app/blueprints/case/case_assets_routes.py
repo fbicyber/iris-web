@@ -29,7 +29,7 @@ from flask import url_for
 from flask_login import current_user
 
 import app
-from app import db
+from app.extensions import db
 from app.blueprints.case.case_comments import case_comment_update
 from app.datamgmt.case.case_assets_db import add_comment_to_asset, get_raw_assets
 from app.datamgmt.case.case_assets_db import create_asset
@@ -195,6 +195,7 @@ def case_assets_state(caseid):
 @ac_api_case_requires(CaseAccessLevel.full_access)
 def add_asset_modal(caseid):
     form = AssetBasicForm()
+    form.asset_in_graph.data = True
 
     form.asset_type_id.choices = get_assets_types()
     form.analysis_status_id.choices = get_analysis_status_list()
@@ -215,6 +216,9 @@ def add_asset(caseid):
         # validate before saving
         add_asset_schema = CaseAssetsSchema()
         request_data = call_modules_hook('on_preload_asset_create', data=request.get_json(), caseid=caseid)
+        # Never load a client-supplied primary key on create, or marshmallow-sqlalchemy
+        # would fetch and overwrite an existing asset from another case.
+        request_data.pop('asset_id', None)
 
         add_asset_schema.is_unique_for_cid(caseid, request_data)
         asset = add_asset_schema.load(request_data)
@@ -389,6 +393,7 @@ def asset_view_modal(cur_id, caseid, url_redir):
     form.asset_type_id.choices = get_assets_types()
     form.analysis_status_id.choices = get_analysis_status_list()
     form.asset_tags.render_kw = {'value': asset.asset_tags}
+    form.asset_in_graph.data = asset.asset_in_graph
     comments_map = get_case_assets_comments_count([cur_id])
 
     return render_template("modal_add_case_asset.html", form=form, asset=asset, map={}, ioc=case_iocs,
@@ -473,7 +478,7 @@ def case_comment_asset_modal(cur_id, caseid, url_redir):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_asset_list(cur_id, caseid):
 
-    asset_comments = get_case_asset_comments(cur_id)
+    asset_comments = get_case_asset_comments(cur_id, caseid)
     if asset_comments is None:
         return response_error('Invalid asset ID')
 
@@ -522,7 +527,7 @@ def case_comment_asset_add(cur_id, caseid):
 @ac_api_case_requires(CaseAccessLevel.read_only, CaseAccessLevel.full_access)
 def case_comment_asset_get(cur_id, com_id, caseid):
 
-    comment = get_case_asset_comment(cur_id, com_id)
+    comment = get_case_asset_comment(cur_id, com_id, caseid)
     if not comment:
         return response_error("Invalid comment ID")
 

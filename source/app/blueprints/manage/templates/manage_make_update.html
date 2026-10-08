@@ -71,7 +71,7 @@
 			</div>
 			<div class="row mt-4">
 				<div class="col d-flex justify-content-center ">
-					<a href='#' onclick="start_updates();" class="btn btn-outline-success text-center" id="update_start_btn">Start updates</a>
+					<a href='#' onclick="start_updates();" class="btn btn-outline-success text-center" id="update_start_btn" aria-label="Start server updates">Start updates</a>
 				</div>
 			</div>
 			<div id="container-updates" class="row shadow-lg ml-4 mr-4 rounded"  style="display:none;">
@@ -114,6 +114,7 @@
 	{% if current_user.in_dark_mode %}<script src="/static/assets/js/dark-mode.js"></script>{% endif %}
 
     <script src="/static/assets/js/core/socket.io.js"></script>
+    <script src="/static/assets/js/iris/socket.manager.js"></script>
     <script src="/static/assets/js/iris/updates.handler.js"></script>
 
 </body>
