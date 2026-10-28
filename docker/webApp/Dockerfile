@@ -46,7 +46,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Define specific admin password at creation
 #ENV IRIS_ADM_PASSWORD="MySuperFirstPasswordIWant"
 
-RUN apt update
+RUN apt update && apt upgrade -y
 RUN apt install -y p7zip-full pgp rsync postgresql-client
 
 RUN mkdir /iriswebapp/

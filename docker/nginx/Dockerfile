@@ -19,7 +19,7 @@
 
 FROM nginx:1.27
 
-RUN apt-get update && apt-get install -y curl
+RUN apt-get update && apt-get upgrade -y && apt-get install -y curl
 
 # Used to pass protected files to the container through volumes
 ARG NGINX_CONF_GID
